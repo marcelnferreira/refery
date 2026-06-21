@@ -117,7 +117,7 @@ export default function ConfiguracoesPage() {
     <div className="space-y-5 max-w-2xl">
       <div>
         <h1 className="text-2xl font-bold text-gray-900">Configurações</h1>
-        <p className="text-sm text-muted-foreground mt-0.5">Personalize o comportamento do REFERY</p>
+        <p className="text-sm text-muted-foreground mt-0.5">Personalize o comportamento da Aplicação</p>
       </div>
 
       <Tabs defaultValue="geral">
