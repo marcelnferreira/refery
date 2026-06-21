@@ -1,0 +1,70 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    // Lookup usuário → conta (leitura própria apenas)
+    match /userConta/{userId} {
+      allow read: if request.auth != null && request.auth.uid == userId;
+      allow write: if request.auth != null && request.auth.uid == userId;
+    }
+
+    // Convites de assistentes (qualquer autenticado pode ler o próprio convite pelo email)
+    match /convites/{email} {
+      allow read: if request.auth != null;
+      allow create, delete: if request.auth != null;
+      allow update: if false;
+    }
+
+    // Dados da conta — acesso somente para membros da conta
+    match /contas/{contaId} {
+      function isMembro() {
+        return request.auth != null &&
+          exists(/databases/$(database)/documents/contas/$(contaId)/usuarios/$(request.auth.uid));
+      }
+
+      function isOwner() {
+        return request.auth != null && request.auth.uid == contaId;
+      }
+
+      // Dados da conta raiz
+      allow read: if isMembro();
+      allow write: if isOwner();
+
+      // Usuários da conta
+      match /usuarios/{userId} {
+        allow read: if isMembro();
+        allow write: if isOwner();
+      }
+
+      // Configurações
+      match /configuracoes/{docId} {
+        allow read: if isMembro();
+        allow write: if isOwner();
+      }
+
+      // Indicações
+      match /indicacoes/{indicacaoId} {
+        allow read, write: if isMembro();
+      }
+
+      // Clientes ativos
+      match /clientes/{clienteId} {
+        allow read, write: if isMembro();
+      }
+
+      // Histórico
+      match /historico/{histId} {
+        allow read, write: if isMembro();
+      }
+
+      // Agendas semanais e itens
+      match /agendas/{agendaId} {
+        allow read, write: if isMembro();
+
+        match /itens/{itemId} {
+          allow read, write: if isMembro();
+        }
+      }
+    }
+  }
+}

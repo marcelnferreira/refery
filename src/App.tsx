@@ -1,0 +1,99 @@
+import React from "react";
+import { Toaster } from "@/components/ui/toaster";
+import { Toaster as Sonner } from "@/components/ui/sonner";
+import { TooltipProvider } from "@/components/ui/tooltip";
+import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
+import { BrowserRouter, Routes, Route, Navigate } from "react-router-dom";
+import { ThemeProvider } from "next-themes";
+import { useAuth } from "@/hooks/useAuth";
+import { AppLayout } from "@/components/layout/AppLayout";
+import { AuthForm } from "@/components/auth/AuthForm";
+import { isFirebaseConfigured } from "@/integrations/firebase/client";
+import { Loader2 } from "lucide-react";
+
+// REFERY Pages
+import DashboardPage from "@/pages/refery/DashboardPage";
+import IndicacoesPage from "@/pages/refery/IndicacoesPage";
+import ClientesPage from "@/pages/refery/ClientesPage";
+import AgendaPage from "@/pages/refery/AgendaPage";
+import ArvoreIndicacoesPage from "@/pages/refery/ArvoreIndicacoesPage";
+import FunilPage from "@/pages/refery/FunilPage";
+import WhatsappPage from "@/pages/refery/WhatsappPage";
+import ConfiguracoesPage from "@/pages/refery/ConfiguracoesPage";
+import UsuariosPage from "@/pages/refery/UsuariosPage";
+
+const queryClient = new QueryClient({
+  defaultOptions: {
+    queries: { retry: 1, staleTime: 30_000 },
+  },
+});
+
+function LoginPage() {
+  const { isAuthenticated, loading } = useAuth();
+  if (loading) {
+    return (
+      <div className="min-h-screen flex items-center justify-center">
+        <Loader2 className="h-8 w-8 animate-spin text-blue-600" />
+      </div>
+    );
+  }
+  if (isAuthenticated) return <Navigate to="/dashboard" replace />;
+  return <AuthForm />;
+}
+
+function ProtectedRoute({ children }: { children: React.ReactNode }) {
+  const { isAuthenticated, loading } = useAuth();
+  if (loading) {
+    return (
+      <div className="min-h-screen flex items-center justify-center">
+        <Loader2 className="h-8 w-8 animate-spin text-blue-600" />
+      </div>
+    );
+  }
+  if (!isAuthenticated) return <Navigate to="/" replace />;
+  return <AppLayout>{children}</AppLayout>;
+}
+
+const App = () => {
+  if (!isFirebaseConfigured) {
+    return (
+      <div className="min-h-screen flex items-center justify-center bg-blue-50 p-4">
+        <div className="text-center max-w-sm">
+          <div className="text-4xl mb-4">🔥</div>
+          <h2 className="text-xl font-bold mb-2">Firebase não configurado</h2>
+          <p className="text-muted-foreground text-sm">
+            Configure as variáveis <code>VITE_FIREBASE_*</code> no arquivo <code>.env</code> e reinicie o servidor.
+          </p>
+        </div>
+      </div>
+    );
+  }
+
+  return (
+    <ThemeProvider attribute="class" defaultTheme="light" enableSystem={false}>
+      <QueryClientProvider client={queryClient}>
+        <TooltipProvider>
+          <Toaster />
+          <Sonner richColors />
+          <BrowserRouter>
+            <Routes>
+              <Route path="/" element={<LoginPage />} />
+              <Route path="/dashboard" element={<ProtectedRoute><DashboardPage /></ProtectedRoute>} />
+              <Route path="/indicacoes" element={<ProtectedRoute><IndicacoesPage /></ProtectedRoute>} />
+              <Route path="/clientes" element={<ProtectedRoute><ClientesPage /></ProtectedRoute>} />
+              <Route path="/agenda" element={<ProtectedRoute><AgendaPage /></ProtectedRoute>} />
+              <Route path="/arvore" element={<ProtectedRoute><ArvoreIndicacoesPage /></ProtectedRoute>} />
+              <Route path="/funil" element={<ProtectedRoute><FunilPage /></ProtectedRoute>} />
+              <Route path="/whatsapp" element={<ProtectedRoute><WhatsappPage /></ProtectedRoute>} />
+              <Route path="/configuracoes" element={<ProtectedRoute><ConfiguracoesPage /></ProtectedRoute>} />
+              <Route path="/usuarios" element={<ProtectedRoute><UsuariosPage /></ProtectedRoute>} />
+              <Route path="*" element={<Navigate to="/" replace />} />
+            </Routes>
+          </BrowserRouter>
+        </TooltipProvider>
+      </QueryClientProvider>
+    </ThemeProvider>
+  );
+};
+
+export default App;
