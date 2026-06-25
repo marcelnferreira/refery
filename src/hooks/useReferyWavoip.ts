@@ -98,9 +98,6 @@ export function useReferyWavoip(): UseReferyWavoipReturn {
     setPeerInfo({ name: null, phone });
 
     try {
-      const hasMic = await checkMic();
-      if (!hasMic) { setStatus('error'); resetState(); return; }
-
       const { Wavoip } = await import('@wavoip/wavoip-api');
       wavoipRef.current = new Wavoip({ tokens: [wavoipToken] });
 
@@ -151,9 +148,15 @@ export function useReferyWavoip(): UseReferyWavoipReturn {
       call.onEnd(() => { if (statusRef.current !== 'connected') { setStatus('ended'); resetState(); } });
 
     } catch (err: any) {
-      setError(err?.message ?? 'Erro ao iniciar chamada');
+      const raw = err?.message ?? '';
+      const msg = raw.toLowerCase().includes('not found') || raw.toLowerCase().includes('notfound')
+        ? 'Microfone não encontrado. Verifique se há um microfone conectado e com permissão no navegador.'
+        : raw.toLowerCase().includes('not allowed') || raw.toLowerCase().includes('permission')
+        ? 'Permissão de microfone negada. Permita o acesso nas configurações do navegador.'
+        : raw || 'Erro ao iniciar chamada';
+      setError(msg);
       setStatus('error');
-      toast.error(err?.message ?? 'Erro ao iniciar chamada');
+      toast.error(msg);
       resetState();
     }
   }, [checkMic, startDurationTimer, stopDurationTimer, resetState]);
