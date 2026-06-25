@@ -7,7 +7,7 @@ import { Textarea } from '@/components/ui/textarea';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { useConta, useUpdateConta, useConfiguracoes, useUpdateConfiguracoes } from '@/hooks/useRefery';
-import { Loader2, Building2, MessageCircle, CalendarDays, Bell, CheckCircle2, XCircle, FlaskConical, Copy, Link } from 'lucide-react';
+import { Loader2, Building2, MessageCircle, CalendarDays, Bell, CheckCircle2, XCircle, FlaskConical, Copy, Link, Phone } from 'lucide-react';
 import { toast } from 'sonner';
 import { uazapiEnviarTexto } from '@/lib/uazapi';
 
@@ -31,6 +31,8 @@ export default function ConfiguracoesPage() {
   const [lifePlanner, setLifePlanner] = useState('');
   const [uazapiSubdomain, setUazapiSubdomain] = useState('');
   const [uazapiToken, setUazapiToken] = useState('');
+  const [wavoipToken, setWavoipToken] = useState('');
+  const [sonioxApiKey, setSonioxApiKey] = useState('');
 
   const [testeTelefone, setTesteTelefone] = useState('');
   const [testandoUazapi, setTestandoUazapi] = useState(false);
@@ -81,6 +83,8 @@ export default function ConfiguracoesPage() {
       setLifePlanner(conta.nome_life_planner);
       setUazapiSubdomain(conta.uazapi_subdomain ?? '');
       setUazapiToken(conta.uazapi_token ?? '');
+      setWavoipToken(conta.wavoip_token ?? '');
+      setSonioxApiKey(conta.soniox_api_key ?? '');
     }
   }, [conta]);
 
@@ -100,6 +104,8 @@ export default function ConfiguracoesPage() {
       nome_life_planner: lifePlanner,
       uazapi_subdomain: uazapiSubdomain || null,
       uazapi_token: uazapiToken || null,
+      wavoip_token: wavoipToken || null,
+      soniox_api_key: sonioxApiKey || null,
     });
   };
 
@@ -124,6 +130,7 @@ export default function ConfiguracoesPage() {
         <TabsList>
           <TabsTrigger value="geral">Geral</TabsTrigger>
           <TabsTrigger value="whatsapp">WhatsApp</TabsTrigger>
+          <TabsTrigger value="telefonia">Telefonia</TabsTrigger>
           <TabsTrigger value="agenda">Ciclo Semanal</TabsTrigger>
           <TabsTrigger value="templates">Templates</TabsTrigger>
         </TabsList>
@@ -286,6 +293,60 @@ export default function ConfiguracoesPage() {
                   </div>
                 )}
               </div>
+            </CardContent>
+          </Card>
+        </TabsContent>
+
+        <TabsContent value="telefonia" className="mt-4">
+          <Card>
+            <CardHeader>
+              <CardTitle className="text-base flex items-center gap-2">
+                <Phone className="h-4 w-4 text-blue-600" />
+                Telefonia VoIP
+              </CardTitle>
+              <CardDescription>
+                Configure para fazer ligações direto pelo REFERY com transcrição e análise por IA.
+              </CardDescription>
+            </CardHeader>
+            <CardContent className="space-y-4">
+              <div className="space-y-2">
+                <Label>Token WaVoIP</Label>
+                <Input
+                  value={wavoipToken}
+                  onChange={e => setWavoipToken(e.target.value)}
+                  type="password"
+                  placeholder="Token do painel WaVoIP"
+                />
+                <p className="text-xs text-muted-foreground">
+                  Obtenha em <strong>wavoip.com</strong> → seu painel → API Token.
+                </p>
+              </div>
+              <div className="space-y-2">
+                <Label>Chave Soniox (transcrição)</Label>
+                <Input
+                  value={sonioxApiKey}
+                  onChange={e => setSonioxApiKey(e.target.value)}
+                  type="password"
+                  placeholder="Chave de API do Soniox"
+                />
+                <p className="text-xs text-muted-foreground">
+                  Obtenha em <strong>soniox.com</strong> → Dashboard → API Keys. Necessário para transcrever as ligações em tempo real.
+                </p>
+              </div>
+              <div className="bg-blue-50 rounded-lg p-3 text-xs text-blue-700 space-y-1">
+                <p className="font-medium">Como funciona:</p>
+                <ol className="list-decimal list-inside space-y-0.5">
+                  <li>Configure o token WaVoIP e salve</li>
+                  <li>Clique em "Ligar" em qualquer cliente ou indicação</li>
+                  <li>A ligação é feita pelo WhatsApp (WaVoIP)</li>
+                  <li>A conversa é transcrita em tempo real pelo Soniox</li>
+                  <li>Ao encerrar, a IA gera resumo e pontos-chave automaticamente</li>
+                </ol>
+              </div>
+              <Button onClick={salvarConta} disabled={updateConta.isPending}>
+                {updateConta.isPending && <Loader2 className="h-4 w-4 mr-2 animate-spin" />}
+                Salvar
+              </Button>
             </CardContent>
           </Card>
         </TabsContent>

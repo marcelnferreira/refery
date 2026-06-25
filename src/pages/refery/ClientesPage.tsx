@@ -7,6 +7,7 @@ import { Switch } from '@/components/ui/switch';
 import { Label } from '@/components/ui/label';
 import { ClienteModal } from '@/components/refery/ClienteModal';
 import { IndicacaoModal } from '@/components/refery/IndicacaoModal';
+import LigacaoModal from '@/components/refery/LigacaoModal';
 import { useClientesAtivos, useUpdateCliente } from '@/hooks/useRefery';
 import type { ClienteAtivo } from '@/types/refery';
 import { Plus, Search, Phone, Mail, Users, MoreVertical, UserCheck, UserX, FileText, Calendar } from 'lucide-react';
@@ -32,6 +33,7 @@ export default function ClientesPage() {
   const [indicacaoModal, setIndicacaoModal] = useState(false);
   const [indicadorSelecionado, setIndicadorSelecionado] = useState('');
   const [confirmDesativar, setConfirmDesativar] = useState<ClienteAtivo | null>(null);
+  const [ligacaoContato, setLigacaoContato] = useState<ClienteAtivo | null>(null);
 
   const filtrados = clientes.filter(c =>
     c.nome.toLowerCase().includes(busca.toLowerCase()) ||
@@ -105,6 +107,14 @@ export default function ClientesPage() {
                       </div>
                     )}
                   </div>
+                  <div className="flex items-center gap-1">
+                    <button
+                      onClick={() => setLigacaoContato(c)}
+                      className="p-1 rounded hover:bg-green-50 text-green-600"
+                      title="Ligar"
+                    >
+                      <Phone className="h-4 w-4" />
+                    </button>
                   <DropdownMenu>
                     <DropdownMenuTrigger asChild>
                       <button className="p-1 rounded hover:bg-gray-100 text-gray-400">
@@ -131,6 +141,7 @@ export default function ClientesPage() {
                       </DropdownMenuItem>
                     </DropdownMenuContent>
                   </DropdownMenu>
+                  </div>
                 </div>
 
                 {(c.numero_apolice || c.data_inicio_apolice) && (
@@ -183,6 +194,16 @@ export default function ClientesPage() {
         onClose={() => { setIndicacaoModal(false); setIndicadorSelecionado(''); }}
         indicadorPreSelecionado={indicadorSelecionado}
       />
+
+      {ligacaoContato && (
+        <LigacaoModal
+          contatoId={ligacaoContato.id}
+          contatoTipo="cliente"
+          contatoNome={ligacaoContato.nome}
+          contatoTelefone={ligacaoContato.telefone}
+          onClose={() => setLigacaoContato(null)}
+        />
+      )}
 
       <AlertDialog open={!!confirmDesativar} onOpenChange={() => setConfirmDesativar(null)}>
         <AlertDialogContent>

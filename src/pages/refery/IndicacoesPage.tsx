@@ -6,6 +6,7 @@ import { KanbanBoard } from '@/components/refery/KanbanBoard';
 import { IndicacaoModal } from '@/components/refery/IndicacaoModal';
 import { StatusBadge } from '@/components/refery/StatusBadge';
 import { HistoricoModal } from '@/components/refery/HistoricoModal';
+import LigacaoModal from '@/components/refery/LigacaoModal';
 import { useIndicacoes, useClientesAtivos } from '@/hooks/useRefery';
 import type { Indicacao } from '@/types/refery';
 import { Plus, Search, Phone, User, Calendar } from 'lucide-react';
@@ -19,6 +20,7 @@ export default function IndicacoesPage() {
   const [historicoOpen, setHistoricoOpen] = useState(false);
   const [indicacaoHistorico, setIndicacaoHistorico] = useState<Indicacao | null>(null);
   const [busca, setBusca] = useState('');
+  const [ligacaoIndicacao, setLigacaoIndicacao] = useState<Indicacao | null>(null);
 
   const filtradas = indicacoes.filter(i =>
     i.nome.toLowerCase().includes(busca.toLowerCase()) ||
@@ -95,6 +97,13 @@ export default function IndicacoesPage() {
                       <td className="px-4 py-3">
                         <div className="flex gap-2">
                           <Button
+                            size="sm" variant="ghost" className="h-7 text-xs text-green-600 hover:text-green-700"
+                            onClick={() => setLigacaoIndicacao(ind)}
+                          >
+                            <Phone className="h-3 w-3 mr-1" />
+                            Ligar
+                          </Button>
+                          <Button
                             size="sm" variant="ghost" className="h-7 text-xs"
                             onClick={() => { setEditando(ind); setModalOpen(true); }}
                           >
@@ -128,6 +137,16 @@ export default function IndicacoesPage() {
           open={historicoOpen}
           onClose={() => { setHistoricoOpen(false); setIndicacaoHistorico(null); }}
           indicacao={indicacaoHistorico}
+        />
+      )}
+
+      {ligacaoIndicacao && (
+        <LigacaoModal
+          contatoId={ligacaoIndicacao.id}
+          contatoTipo="indicacao"
+          contatoNome={ligacaoIndicacao.nome}
+          contatoTelefone={ligacaoIndicacao.telefone}
+          onClose={() => setLigacaoIndicacao(null)}
         />
       )}
     </div>

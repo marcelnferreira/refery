@@ -16,9 +16,29 @@ export interface Conta {
   status: ContaStatus;
   uazapi_subdomain: string | null;
   uazapi_token: string | null;
+  wavoip_token: string | null;
+  soniox_api_key: string | null;
   google_calendar_config: any;
   created_at: string;
   updated_at: string;
+}
+
+export type LigacaoStatus = 'realizada' | 'nao_atendeu' | 'ocupado' | 'erro';
+
+export interface Ligacao {
+  id: string;
+  conta_id: string;
+  contato_id: string;
+  contato_tipo: 'cliente' | 'indicacao';
+  contato_nome: string;
+  contato_telefone: string;
+  status: LigacaoStatus;
+  duracao_segundos: number;
+  transcricao: string | null;
+  resumo_ia: string | null;
+  pontos_chave: string[];
+  proxima_acao: string | null;
+  created_at: string;
 }
 
 export interface UsuarioConta {

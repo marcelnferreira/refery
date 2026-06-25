@@ -9,6 +9,7 @@ import { toast } from 'sonner';
 import type {
   Conta, UsuarioConta, ConfiguracoesConta, ClienteAtivo, Indicacao,
   HistoricoAtividade, AgendaSemanal, AgendaItem, IndicacaoStatus, AgendaItemResultado,
+  Ligacao, LigacaoStatus,
 } from '@/types/refery';
 
 // ============================================================
@@ -648,6 +649,53 @@ export function useSalvarMensagem() {
       });
     },
     onSuccess: () => qc.invalidateQueries({ queryKey: ['whatsapp_msgs'] }),
+    onError: (e: any) => toast.error(e.message),
+  });
+}
+
+// ============================================================
+// LIGAÇÕES
+// ============================================================
+
+export function useLigacoes(contatoId?: string) {
+  const { user } = useAuth();
+  return useQuery<Ligacao[]>({
+    queryKey: ['ligacoes', user?.uid, contatoId],
+    queryFn: async () => {
+      const contaId = await getContaId(user!.uid);
+      if (!contaId) return [];
+      const q = query(
+        collection(db, 'contas', contaId, 'ligacoes'),
+        orderBy('created_at', 'desc')
+      );
+      const snap = await getDocs(q);
+      const all = snap.docs.map(d => ({
+        id: d.id,
+        ...d.data(),
+        created_at: tsToStr((d.data() as any).created_at),
+        pontos_chave: (d.data() as any).pontos_chave ?? [],
+      }) as Ligacao);
+      return contatoId ? all.filter(l => l.contato_id === contatoId) : all;
+    },
+    enabled: !!user,
+  });
+}
+
+export function useSalvarLigacao() {
+  const qc = useQueryClient();
+  const { user } = useAuth();
+  return useMutation({
+    mutationFn: async (input: Omit<Ligacao, 'id' | 'created_at' | 'conta_id'>) => {
+      const contaId = await getContaId(user!.uid);
+      if (!contaId) throw new Error('Conta não encontrada');
+      const ref = await addDoc(collection(db, 'contas', contaId, 'ligacoes'), {
+        ...input,
+        conta_id: contaId,
+        created_at: serverTimestamp(),
+      });
+      return ref.id;
+    },
+    onSuccess: () => qc.invalidateQueries({ queryKey: ['ligacoes'] }),
     onError: (e: any) => toast.error(e.message),
   });
 }
