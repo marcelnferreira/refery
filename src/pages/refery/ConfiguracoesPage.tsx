@@ -32,6 +32,8 @@ export default function ConfiguracoesPage() {
   const [uazapiSubdomain, setUazapiSubdomain] = useState('');
   const [uazapiToken, setUazapiToken] = useState('');
   const [wavoipToken, setWavoipToken] = useState('');
+  const [sipUser, setSipUser] = useState('');
+  const [sipPassword, setSipPassword] = useState('');
   const [sonioxApiKey, setSonioxApiKey] = useState('');
 
   const [testeTelefone, setTesteTelefone] = useState('');
@@ -84,6 +86,8 @@ export default function ConfiguracoesPage() {
       setUazapiSubdomain(conta.uazapi_subdomain ?? '');
       setUazapiToken(conta.uazapi_token ?? '');
       setWavoipToken(conta.wavoip_token ?? '');
+      setSipUser(conta.sip_user ?? '');
+      setSipPassword(conta.sip_password ?? '');
       setSonioxApiKey(conta.soniox_api_key ?? '');
     }
   }, [conta]);
@@ -105,6 +109,8 @@ export default function ConfiguracoesPage() {
       uazapi_subdomain: uazapiSubdomain || null,
       uazapi_token: uazapiToken || null,
       wavoip_token: wavoipToken || null,
+      sip_user: sipUser || null,
+      sip_password: sipPassword || null,
       soniox_api_key: sonioxApiKey || null,
     });
   };
@@ -309,17 +315,27 @@ export default function ConfiguracoesPage() {
               </CardDescription>
             </CardHeader>
             <CardContent className="space-y-4">
+              <div className="bg-amber-50 border border-amber-200 rounded-lg p-3 text-xs text-amber-800 space-y-1">
+                <p className="font-semibold">Credenciais SIP do WaVoIP</p>
+                <p>No painel WaVoIP, vá em <strong>Configurações → SIP</strong> e copie o Usuário e Senha.</p>
+                <p className="text-muted-foreground">Host fixo: <code>sipv2.wavoip.com</code></p>
+              </div>
               <div className="space-y-2">
-                <Label>Token WaVoIP</Label>
+                <Label>SIP Usuário</Label>
                 <Input
-                  value={wavoipToken}
-                  onChange={e => setWavoipToken(e.target.value)}
-                  type="password"
-                  placeholder="Token do painel WaVoIP"
+                  value={sipUser}
+                  onChange={e => setSipUser(e.target.value)}
+                  placeholder="Usuário SIP do WaVoIP"
                 />
-                <p className="text-xs text-muted-foreground">
-                  Obtenha em <strong>wavoip.com</strong> → seu painel → API Token.
-                </p>
+              </div>
+              <div className="space-y-2">
+                <Label>SIP Senha</Label>
+                <Input
+                  value={sipPassword}
+                  onChange={e => setSipPassword(e.target.value)}
+                  type="password"
+                  placeholder="Senha SIP do WaVoIP"
+                />
               </div>
               <div className="space-y-2">
                 <Label>Chave Soniox (transcrição)</Label>

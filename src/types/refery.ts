@@ -17,6 +17,8 @@ export interface Conta {
   uazapi_subdomain: string | null;
   uazapi_token: string | null;
   wavoip_token: string | null;
+  sip_user: string | null;
+  sip_password: string | null;
   soniox_api_key: string | null;
   google_calendar_config: any;
   created_at: string;
