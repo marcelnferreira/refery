@@ -1,10 +1,14 @@
-import { useState } from 'react';
+import { useState, useRef, useEffect, useCallback } from 'react';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
-import { Textarea } from '@/components/ui/textarea';
+import { ScrollArea } from '@/components/ui/scroll-area';
 import { useConta, useSalvarLigacao } from '@/hooks/useRefery';
+import { useReferyTranscription } from '@/hooks/useReferyTranscription';
 import { toast } from 'sonner';
-import { Phone, Loader2, CheckCircle2, X, ExternalLink } from 'lucide-react';
+import {
+  Phone, PhoneOff, Mic, MicOff, Loader2,
+  CheckCircle2, X, MessageSquareText, ExternalLink,
+} from 'lucide-react';
 
 interface Props {
   contatoId: string;
@@ -20,60 +24,79 @@ const toE164BR = (phone: string): string => {
   return `55${d}`;
 };
 
-type Fase = 'idle' | 'ligando' | 'resumo';
-type Resultado = 'realizada' | 'nao_atendeu' | 'ocupado';
+const fmtDuracao = (s: number) =>
+  `${String(Math.floor(s / 60)).padStart(2, '0')}:${String(s % 60).padStart(2, '0')}`;
+
+type Fase = 'idle' | 'iniciando' | 'ligando' | 'analisando' | 'resumo';
+type StatusChamada = 'realizada' | 'nao_atendeu' | 'ocupado';
 
 export default function LigacaoModal({ contatoId, contatoTipo, contatoNome, contatoTelefone, onClose }: Props) {
   const { data: conta } = useConta();
   const salvarLigacao = useSalvarLigacao();
+  const { segmentos, transcrevendo, iniciarTranscricao, pararTranscricao, getTextoFinal } = useReferyTranscription();
 
   const [fase, setFase] = useState<Fase>('idle');
-  const [resultado, setResultado] = useState<Resultado>('realizada');
-  const [observacoes, setObservacoes] = useState('');
-  const [duracao, setDuracao] = useState('');
+  const [duracao, setDuracao] = useState(0);
+  const [mutado, setMutado] = useState(false);
   const [analise, setAnalise] = useState<any>(null);
-  const [analisando, setAnalisando] = useState(false);
+  const [statusChamada, setStatusChamada] = useState<StatusChamada>('realizada');
 
-  const abrirChamada = () => {
-    if (!conta?.wavoip_token) {
-      toast.error('Token WaVoIP não configurado. Configure em Configurações → Telefonia.');
-      return;
-    }
+  const popupRef = useRef<Window | null>(null);
+  const micStreamRef = useRef<MediaStream | null>(null);
+  const timerRef = useRef<NodeJS.Timeout | null>(null);
+  const pollRef = useRef<NodeJS.Timeout | null>(null);
+  const scrollRef = useRef<HTMLDivElement>(null);
+  const duracaoRef = useRef(0);
 
-    const phone = toE164BR(contatoTelefone);
-    const params = new URLSearchParams({
-      token: conta.wavoip_token,
-      phone,
-      start_if_ready: 'true',
-      available_after_call: 'false',
-      close_after_call: 'true',
-      name: contatoNome,
-    });
+  // Auto-scroll transcrição
+  useEffect(() => {
+    if (scrollRef.current) scrollRef.current.scrollTop = scrollRef.current.scrollHeight;
+  }, [segmentos]);
 
-    const features = 'popup=yes,width=420,height=640,resizable=yes,scrollbars=no';
-    const win = window.open(`https://app.wavoip.com/call?${params}`, 'wavoip_call', features);
+  // Timer de duração
+  const iniciarTimer = useCallback(() => {
+    setDuracao(0);
+    duracaoRef.current = 0;
+    timerRef.current = setInterval(() => {
+      duracaoRef.current += 1;
+      setDuracao(duracaoRef.current);
+    }, 1000);
+  }, []);
 
-    if (!win) {
-      toast.error('Popup bloqueado. Permita popups para este site e tente novamente.');
-      return;
-    }
+  const pararTimer = useCallback(() => {
+    if (timerRef.current) { clearInterval(timerRef.current); timerRef.current = null; }
+  }, []);
 
-    win.focus();
-    setFase('ligando');
-  };
+  // Cleanup ao desmontar
+  useEffect(() => {
+    return () => {
+      pararTimer();
+      pararTranscricao();
+      if (pollRef.current) clearInterval(pollRef.current);
+      micStreamRef.current?.getTracks().forEach(t => t.stop());
+      try { popupRef.current?.close(); } catch {}
+    };
+  }, [pararTimer, pararTranscricao]);
 
-  const registrarResultado = async () => {
-    const duracaoSeg = duracao ? parseInt(duracao) * 60 : 0;
-    setAnalisando(true);
+  const encerrarChamada = useCallback(async (duracaoFinal: number) => {
+    pararTimer();
+    pararTranscricao();
+    if (pollRef.current) { clearInterval(pollRef.current); pollRef.current = null; }
+    micStreamRef.current?.getTracks().forEach(t => t.stop());
+    micStreamRef.current = null;
 
+    setFase('analisando');
+
+    const textoTranscricao = getTextoFinal();
     let analiseResult = null;
-    if (resultado === 'realizada' && observacoes.trim()) {
+
+    if (textoTranscricao.trim()) {
       try {
         const res = await fetch('/api/analyze-call', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({
-            transcricao: observacoes,
+            transcricao: textoTranscricao,
             contato_nome: contatoNome,
             contato_tipo: contatoTipo,
           }),
@@ -87,27 +110,108 @@ export default function LigacaoModal({ contatoId, contatoTipo, contatoNome, cont
       contato_tipo: contatoTipo,
       contato_nome: contatoNome,
       contato_telefone: contatoTelefone,
-      status: resultado,
-      duracao_segundos: duracaoSeg,
-      transcricao: observacoes || null,
+      status: statusChamada,
+      duracao_segundos: duracaoFinal,
+      transcricao: textoTranscricao || null,
       resumo_ia: analiseResult?.resumo ?? null,
       pontos_chave: analiseResult?.pontos_chave ?? [],
       proxima_acao: analiseResult?.proxima_acao ?? null,
     });
 
     setAnalise(analiseResult);
-    setAnalisando(false);
     setFase('resumo');
+  }, [pararTimer, pararTranscricao, getTextoFinal, contatoId, contatoTipo, contatoNome, contatoTelefone, statusChamada, salvarLigacao]);
+
+  const iniciarChamada = async () => {
+    if (!conta?.wavoip_token) {
+      toast.error('Token WaVoIP não configurado. Configure em Configurações → Telefonia.');
+      return;
+    }
+
+    setFase('iniciando');
+
+    // Captura microfone primeiro
+    let micStream: MediaStream | null = null;
+    try {
+      micStream = await navigator.mediaDevices.getUserMedia({
+        audio: { echoCancellation: true, noiseSuppression: true, autoGainControl: true },
+      });
+      micStreamRef.current = micStream;
+    } catch (err: any) {
+      const msg = err.name === 'NotAllowedError'
+        ? 'Permissão de microfone negada. Permite o acesso nas configurações do navegador.'
+        : 'Não foi possível acessar o microfone.';
+      toast.error(msg);
+      setFase('idle');
+      return;
+    }
+
+    // Abre popup WaVoIP
+    const phone = toE164BR(contatoTelefone);
+    const params = new URLSearchParams({
+      token: conta.wavoip_token,
+      phone,
+      start_if_ready: 'true',
+      available_after_call: 'false',
+      close_after_call: 'true',
+      name: contatoNome,
+    });
+    const features = 'popup=yes,width=420,height=640,resizable=yes,scrollbars=no';
+    const win = window.open(`https://app.wavoip.com/call?${params}`, 'wavoip_call', features);
+
+    if (!win) {
+      toast.error('Popup bloqueado. Permita popups para este site e tente novamente.');
+      micStream.getTracks().forEach(t => t.stop());
+      micStreamRef.current = null;
+      setFase('idle');
+      return;
+    }
+
+    popupRef.current = win;
+    win.focus();
+    setFase('ligando');
+    iniciarTimer();
+
+    // Inicia transcrição local (Soniox)
+    if (conta.soniox_api_key) {
+      await iniciarTranscricao(micStream, conta.soniox_api_key, contatoNome);
+    }
+
+    // Poll: detecta quando popup fecha
+    pollRef.current = setInterval(() => {
+      if (!popupRef.current || popupRef.current.closed) {
+        if (pollRef.current) { clearInterval(pollRef.current); pollRef.current = null; }
+        encerrarChamada(duracaoRef.current);
+      }
+    }, 1000);
   };
+
+  const encerrarManual = async () => {
+    try { popupRef.current?.close(); } catch {}
+    if (pollRef.current) { clearInterval(pollRef.current); pollRef.current = null; }
+    encerrarChamada(duracaoRef.current);
+  };
+
+  const toggleMute = () => {
+    if (!micStreamRef.current) return;
+    const track = micStreamRef.current.getAudioTracks()[0];
+    if (!track) return;
+    track.enabled = !track.enabled;
+    setMutado(!track.enabled);
+  };
+
+  const finaisCount = segmentos.filter(s => s.is_final).length;
+  const parciais = segmentos.filter(s => !s.is_final);
 
   return (
     <div className="fixed inset-0 bg-black/60 flex items-center justify-center z-50 p-4">
-      <div className="bg-white rounded-2xl shadow-2xl w-full max-w-md overflow-hidden">
+      <div className="bg-white rounded-2xl shadow-2xl w-full max-w-md overflow-hidden flex flex-col">
 
         {/* Header */}
-        <div className={`px-5 py-4 flex items-center justify-between ${
-          fase === 'ligando' ? 'bg-yellow-500 text-white' :
-          fase === 'resumo' ? 'bg-green-600 text-white' :
+        <div className={`px-5 py-4 flex items-center justify-between flex-shrink-0 ${
+          fase === 'ligando' ? 'bg-green-600 text-white' :
+          fase === 'analisando' ? 'bg-blue-600 text-white' :
+          fase === 'resumo' ? 'bg-gray-900 text-white' :
           'bg-gray-900 text-white'
         }`}>
           <div className="flex items-center gap-3">
@@ -119,14 +223,19 @@ export default function LigacaoModal({ contatoId, contatoTipo, contatoNome, cont
               <p className="text-xs opacity-80">{contatoTelefone}</p>
             </div>
           </div>
-          {['idle', 'resumo'].includes(fase) && (
-            <button onClick={onClose} className="p-1 rounded-full hover:bg-white/20">
-              <X className="h-4 w-4" />
-            </button>
-          )}
+          <div className="flex items-center gap-2">
+            {fase === 'ligando' && (
+              <span className="text-lg font-mono font-bold">{fmtDuracao(duracao)}</span>
+            )}
+            {['idle', 'resumo'].includes(fase) && (
+              <button onClick={onClose} className="p-1 rounded-full hover:bg-white/20">
+                <X className="h-4 w-4" />
+              </button>
+            )}
+          </div>
         </div>
 
-        <div className="p-5 space-y-4">
+        <div className="p-5 space-y-4 overflow-y-auto flex-1">
 
           {/* IDLE */}
           {fase === 'idle' && (
@@ -137,39 +246,95 @@ export default function LigacaoModal({ contatoId, contatoTipo, contatoNome, cont
               <div>
                 <p className="font-medium text-gray-900">Ligar para {contatoNome}</p>
                 <p className="text-sm text-muted-foreground mt-0.5">
-                  Abre a chamada WaVoIP em uma janela separada.
+                  A chamada abre via WaVoIP. O REFERY captura a transcrição em tempo real.
                 </p>
               </div>
               {!conta?.wavoip_token && (
-                <div className="flex items-center gap-2 text-sm text-amber-700 bg-amber-50 rounded-lg px-3 py-2">
+                <div className="text-sm text-amber-700 bg-amber-50 rounded-lg px-3 py-2">
                   Token WaVoIP não configurado. Configure em Configurações → Telefonia.
                 </div>
               )}
-              <Button onClick={abrirChamada} className="bg-green-600 hover:bg-green-700 w-full" size="lg">
-                <ExternalLink className="h-4 w-4 mr-2" />
-                Abrir chamada WaVoIP
+              {!conta?.soniox_api_key && (
+                <div className="text-sm text-blue-700 bg-blue-50 rounded-lg px-3 py-2">
+                  Sem chave Soniox — transcrição não disponível, mas a ligação funciona.
+                </div>
+              )}
+              <Button
+                onClick={iniciarChamada}
+                disabled={!conta?.wavoip_token}
+                className="bg-green-600 hover:bg-green-700 w-full"
+                size="lg"
+              >
+                <Phone className="h-4 w-4 mr-2" />
+                Iniciar chamada
               </Button>
             </div>
           )}
 
-          {/* LIGANDO → aguarda o usuário registrar */}
+          {/* INICIANDO */}
+          {fase === 'iniciando' && (
+            <div className="text-center py-8 space-y-3">
+              <Loader2 className="h-8 w-8 animate-spin text-green-600 mx-auto" />
+              <p className="text-sm text-muted-foreground">Conectando microfone e abrindo chamada...</p>
+            </div>
+          )}
+
+          {/* LIGANDO */}
           {fase === 'ligando' && (
             <div className="space-y-4">
-              <div className="flex items-center gap-2 text-sm text-yellow-700 bg-yellow-50 rounded-lg px-3 py-2">
-                <Loader2 className="h-4 w-4 animate-spin shrink-0" />
-                Chamada aberta na janela WaVoIP. Quando terminar, registre o resultado abaixo.
+              {/* Status bar */}
+              <div className="flex items-center gap-2 bg-green-50 rounded-lg px-3 py-2 text-sm text-green-700">
+                <span className="w-2 h-2 rounded-full bg-green-500 animate-pulse" />
+                Chamada em andamento na janela WaVoIP
+                {transcrevendo && (
+                  <span className="ml-auto flex items-center gap-1 text-xs text-blue-600">
+                    <Mic className="h-3 w-3" />transcrição ativa
+                  </span>
+                )}
               </div>
 
-              {/* Resultado */}
-              <div className="space-y-2">
-                <p className="text-sm font-medium">Resultado da ligação</p>
+              {/* Transcrição */}
+              <div className="border rounded-lg overflow-hidden">
+                <div className="flex items-center gap-2 px-3 py-2 border-b bg-gray-50">
+                  <MessageSquareText className="h-4 w-4 text-muted-foreground" />
+                  <span className="text-xs font-medium text-muted-foreground">Transcrição em tempo real</span>
+                  {finaisCount > 0 && (
+                    <Badge variant="secondary" className="ml-auto text-xs">{finaisCount} trechos</Badge>
+                  )}
+                </div>
+                <ScrollArea className="h-44">
+                  <div ref={scrollRef} className="p-3 space-y-1.5 text-sm">
+                    {segmentos.length === 0 && (
+                      <p className="text-xs text-muted-foreground text-center italic py-4">
+                        {transcrevendo ? 'Aguardando fala...' : 'Soniox não configurado — transcrição indisponível'}
+                      </p>
+                    )}
+                    {segmentos.filter(s => s.is_final).map(s => (
+                      <div key={s.id} className="flex gap-2">
+                        <span className="font-semibold text-xs text-primary shrink-0">{s.speaker}:</span>
+                        <span className="text-gray-800">{s.text}</span>
+                      </div>
+                    ))}
+                    {parciais.map(s => (
+                      <div key={`p-${s.id}`} className="flex gap-2 opacity-50 italic">
+                        <span className="font-semibold text-xs text-primary shrink-0">{s.speaker}:</span>
+                        <span className="text-gray-600">{s.text}...</span>
+                      </div>
+                    ))}
+                  </div>
+                </ScrollArea>
+              </div>
+
+              {/* Resultado antecipado */}
+              <div className="space-y-1.5">
+                <p className="text-xs font-medium text-muted-foreground">Resultado (selecione antes de encerrar)</p>
                 <div className="flex gap-2">
-                  {(['realizada', 'nao_atendeu', 'ocupado'] as Resultado[]).map(r => (
+                  {(['realizada', 'nao_atendeu', 'ocupado'] as StatusChamada[]).map(r => (
                     <button
                       key={r}
-                      onClick={() => setResultado(r)}
+                      onClick={() => setStatusChamada(r)}
                       className={`flex-1 py-1.5 rounded-lg text-xs font-medium border transition-colors ${
-                        resultado === r
+                        statusChamada === r
                           ? r === 'realizada' ? 'bg-green-600 text-white border-green-600'
                           : r === 'nao_atendeu' ? 'bg-red-500 text-white border-red-500'
                           : 'bg-orange-500 text-white border-orange-500'
@@ -182,42 +347,35 @@ export default function LigacaoModal({ contatoId, contatoTipo, contatoNome, cont
                 </div>
               </div>
 
-              {resultado === 'realizada' && (
-                <>
-                  <div className="space-y-1">
-                    <p className="text-sm font-medium">Duração (minutos)</p>
-                    <input
-                      type="number"
-                      min="0"
-                      className="w-full border rounded-lg px-3 py-1.5 text-sm"
-                      placeholder="Ex: 5"
-                      value={duracao}
-                      onChange={e => setDuracao(e.target.value)}
-                    />
-                  </div>
-                  <div className="space-y-1">
-                    <p className="text-sm font-medium">Observações da conversa</p>
-                    <Textarea
-                      placeholder="Resuma o que foi conversado — a IA vai gerar análise com base nisso..."
-                      rows={4}
-                      value={observacoes}
-                      onChange={e => setObservacoes(e.target.value)}
-                    />
-                  </div>
-                </>
-              )}
+              {/* Controles */}
+              <div className="flex gap-3">
+                <Button
+                  variant="outline"
+                  size="icon"
+                  className="h-12 w-12 rounded-full"
+                  onClick={toggleMute}
+                  disabled={!transcrevendo}
+                >
+                  {mutado ? <MicOff className="h-5 w-5 text-destructive" /> : <Mic className="h-5 w-5" />}
+                </Button>
+                <Button
+                  variant="destructive"
+                  className="flex-1 h-12"
+                  onClick={encerrarManual}
+                >
+                  <PhoneOff className="h-5 w-5 mr-2" />
+                  Encerrar e analisar
+                </Button>
+              </div>
+            </div>
+          )}
 
-              <Button
-                onClick={registrarResultado}
-                disabled={analisando}
-                className="w-full"
-              >
-                {analisando ? (
-                  <><Loader2 className="h-4 w-4 mr-2 animate-spin" />Analisando com IA...</>
-                ) : (
-                  <><CheckCircle2 className="h-4 w-4 mr-2" />Salvar ligação</>
-                )}
-              </Button>
+          {/* ANALISANDO */}
+          {fase === 'analisando' && (
+            <div className="text-center py-8 space-y-3">
+              <Loader2 className="h-8 w-8 animate-spin text-blue-600 mx-auto" />
+              <p className="font-medium">Analisando com IA...</p>
+              <p className="text-sm text-muted-foreground">Gerando resumo da conversa</p>
             </div>
           )}
 
@@ -226,13 +384,13 @@ export default function LigacaoModal({ contatoId, contatoTipo, contatoNome, cont
             <div className="space-y-3">
               <div className="flex items-center gap-2 text-green-700 bg-green-50 rounded-lg px-3 py-2 text-sm">
                 <CheckCircle2 className="h-4 w-4 shrink-0" />
-                Ligação salva no histórico.
+                Ligação salva · {fmtDuracao(duracao)}
               </div>
 
               {analise ? (
                 <>
                   <div className="space-y-1">
-                    <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide">Resumo IA</p>
+                    <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide">Resumo</p>
                     <p className="text-sm text-gray-800">{analise.resumo}</p>
                   </div>
                   {analise.pontos_chave?.length > 0 && (
@@ -257,30 +415,37 @@ export default function LigacaoModal({ contatoId, contatoTipo, contatoNome, cont
                     <div className="bg-amber-50 border border-amber-200 rounded-lg px-3 py-2">
                       <p className="text-xs font-semibold text-amber-700">Agendamento detectado</p>
                       <p className="text-sm text-amber-800 mt-0.5">
-                        {analise.data_agendamento} {analise.hora_agendamento && `às ${analise.hora_agendamento}`}
+                        {analise.data_agendamento}{analise.hora_agendamento ? ` às ${analise.hora_agendamento}` : ''}
                       </p>
                     </div>
                   )}
-                  <div className="flex items-center gap-2">
-                    <Badge variant="secondary" className={`text-xs ${
-                      analise.interesse === 'alto' ? 'bg-green-100 text-green-700' :
-                      analise.interesse === 'medio' ? 'bg-yellow-100 text-yellow-700' :
-                      analise.interesse === 'baixo' ? 'bg-red-100 text-red-600' :
-                      'bg-gray-100 text-gray-500'
-                    }`}>
-                      Interesse {analise.interesse ?? 'não avaliado'}
-                    </Badge>
+                  <div className="flex items-center gap-2 flex-wrap">
+                    {analise.interesse && (
+                      <Badge variant="secondary" className={`text-xs ${
+                        analise.interesse === 'alto' ? 'bg-green-100 text-green-700' :
+                        analise.interesse === 'medio' ? 'bg-yellow-100 text-yellow-700' :
+                        'bg-red-100 text-red-600'
+                      }`}>
+                        Interesse {analise.interesse}
+                      </Badge>
+                    )}
+                    {analise.sentimento && (
+                      <Badge variant="secondary" className="text-xs bg-gray-100 text-gray-600">
+                        {analise.sentimento}
+                      </Badge>
+                    )}
                   </div>
                 </>
               ) : (
                 <div className="text-sm text-muted-foreground bg-gray-50 rounded-lg px-3 py-3">
-                  Ligação registrada sem análise de IA.
+                  {getTextoFinal() ? 'Análise não disponível — verifique a chave Gemini.' : 'Nenhuma transcrição capturada.'}
                 </div>
               )}
 
               <Button onClick={onClose} className="w-full">Fechar</Button>
             </div>
           )}
+
         </div>
       </div>
     </div>
