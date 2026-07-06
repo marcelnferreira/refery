@@ -9,7 +9,7 @@ import { toast } from 'sonner';
 import type {
   Conta, UsuarioConta, ConfiguracoesConta, ClienteAtivo, Indicacao,
   HistoricoAtividade, AgendaSemanal, AgendaItem, IndicacaoStatus, AgendaItemResultado,
-  Ligacao, LigacaoStatus,
+  Ligacao, LigacaoStatus, StatusIndicacaoCustom,
 } from '@/types/refery';
 
 // ============================================================
@@ -696,6 +696,73 @@ export function useSalvarLigacao() {
       return ref.id;
     },
     onSuccess: () => qc.invalidateQueries({ queryKey: ['ligacoes'] }),
+    onError: (e: any) => toast.error(e.message),
+  });
+}
+
+// ============================================================
+// STATUS PERSONALIZADOS DE INDICAÇÃO
+// ============================================================
+
+export function useStatusIndicacao() {
+  const { user } = useAuth();
+  return useQuery<StatusIndicacaoCustom[]>({
+    queryKey: ['status-indicacao', user?.uid],
+    queryFn: async () => {
+      const contaId = await getContaId(user!.uid);
+      if (!contaId) return [];
+      const snap = await getDocs(query(
+        collection(db, 'contas', contaId, 'status_indicacao'),
+        orderBy('ordem')
+      ));
+      return snap.docs.map(d => docToObj<StatusIndicacaoCustom>(d));
+    },
+    enabled: !!user,
+  });
+}
+
+export function useCreateStatusIndicacao() {
+  const qc = useQueryClient();
+  const { user } = useAuth();
+  return useMutation({
+    mutationFn: async (input: Omit<StatusIndicacaoCustom, 'id' | 'created_at'>) => {
+      const contaId = await getContaId(user!.uid);
+      if (!contaId) throw new Error('Conta não encontrada');
+      const ref = await addDoc(collection(db, 'contas', contaId, 'status_indicacao'), {
+        ...input,
+        created_at: serverTimestamp(),
+      });
+      return ref.id;
+    },
+    onSuccess: () => { qc.invalidateQueries({ queryKey: ['status-indicacao'] }); toast.success('Status criado!'); },
+    onError: (e: any) => toast.error(e.message),
+  });
+}
+
+export function useUpdateStatusIndicacao() {
+  const qc = useQueryClient();
+  const { user } = useAuth();
+  return useMutation({
+    mutationFn: async ({ id, ...updates }: Partial<StatusIndicacaoCustom> & { id: string }) => {
+      const contaId = await getContaId(user!.uid);
+      if (!contaId) throw new Error('Conta não encontrada');
+      await updateDoc(doc(db, 'contas', contaId, 'status_indicacao', id), updates);
+    },
+    onSuccess: () => { qc.invalidateQueries({ queryKey: ['status-indicacao'] }); toast.success('Status atualizado!'); },
+    onError: (e: any) => toast.error(e.message),
+  });
+}
+
+export function useDeleteStatusIndicacao() {
+  const qc = useQueryClient();
+  const { user } = useAuth();
+  return useMutation({
+    mutationFn: async (id: string) => {
+      const contaId = await getContaId(user!.uid);
+      if (!contaId) throw new Error('Conta não encontrada');
+      await deleteDoc(doc(db, 'contas', contaId, 'status_indicacao', id));
+    },
+    onSuccess: () => { qc.invalidateQueries({ queryKey: ['status-indicacao'] }); toast.success('Status excluído!'); },
     onError: (e: any) => toast.error(e.message),
   });
 }

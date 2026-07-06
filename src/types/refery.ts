@@ -25,6 +25,30 @@ export interface Conta {
   updated_at: string;
 }
 
+export type StatusCor = 'azul' | 'amarelo' | 'roxo' | 'laranja' | 'verde' | 'vermelho' | 'cinza' | 'teal' | 'rosa';
+
+export interface StatusIndicacaoCustom {
+  id: string;
+  codigo: string;
+  descricao: string;
+  cor: StatusCor;
+  ordem: number;
+  ativo: boolean;
+  created_at: string;
+}
+
+export const STATUS_CORES: Record<StatusCor, { label: string; badge: string; dot: string }> = {
+  azul:     { label: 'Azul',     badge: 'bg-blue-100 text-blue-700 border-blue-200',       dot: 'bg-blue-500' },
+  amarelo:  { label: 'Amarelo',  badge: 'bg-yellow-100 text-yellow-700 border-yellow-200', dot: 'bg-yellow-500' },
+  roxo:     { label: 'Roxo',     badge: 'bg-purple-100 text-purple-700 border-purple-200', dot: 'bg-purple-500' },
+  laranja:  { label: 'Laranja',  badge: 'bg-orange-100 text-orange-700 border-orange-200', dot: 'bg-orange-500' },
+  verde:    { label: 'Verde',    badge: 'bg-green-100 text-green-700 border-green-200',    dot: 'bg-green-500' },
+  vermelho: { label: 'Vermelho', badge: 'bg-red-100 text-red-700 border-red-200',          dot: 'bg-red-500' },
+  cinza:    { label: 'Cinza',    badge: 'bg-gray-100 text-gray-500 border-gray-200',       dot: 'bg-gray-400' },
+  teal:     { label: 'Teal',     badge: 'bg-teal-100 text-teal-700 border-teal-200',       dot: 'bg-teal-500' },
+  rosa:     { label: 'Rosa',     badge: 'bg-pink-100 text-pink-700 border-pink-200',       dot: 'bg-pink-500' },
+};
+
 export type LigacaoStatus = 'realizada' | 'nao_atendeu' | 'ocupado' | 'erro';
 
 export interface Ligacao {

@@ -10,6 +10,7 @@ import { useConta, useUpdateConta, useConfiguracoes, useUpdateConfiguracoes } fr
 import { Loader2, Building2, MessageCircle, CalendarDays, Bell, CheckCircle2, XCircle, FlaskConical, Copy, Link, Phone } from 'lucide-react';
 import { toast } from 'sonner';
 import { uazapiEnviarTexto } from '@/lib/uazapi';
+import StatusIndicacaoSettings from '@/components/refery/StatusIndicacaoSettings';
 
 const DIAS_SEMANA = [
   { value: '0', label: 'Domingo' },
@@ -135,11 +136,16 @@ export default function ConfiguracoesPage() {
       <Tabs defaultValue="geral">
         <TabsList>
           <TabsTrigger value="geral">Geral</TabsTrigger>
+          <TabsTrigger value="status">Status</TabsTrigger>
           <TabsTrigger value="whatsapp">WhatsApp</TabsTrigger>
           <TabsTrigger value="telefonia">Telefonia</TabsTrigger>
           <TabsTrigger value="agenda">Ciclo Semanal</TabsTrigger>
           <TabsTrigger value="templates">Templates</TabsTrigger>
         </TabsList>
+
+        <TabsContent value="status" className="mt-4">
+          <StatusIndicacaoSettings />
+        </TabsContent>
 
         <TabsContent value="geral" className="mt-4">
           <Card>
