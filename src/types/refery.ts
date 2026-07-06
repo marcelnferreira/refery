@@ -116,6 +116,7 @@ export interface Indicacao {
   email: string | null;
   indicado_por_id: string;
   status: IndicacaoStatus;
+  status_custom: string | null;
   motivo_perda: string | null;
   data_reuniao: string | null;
   observacoes: string | null;

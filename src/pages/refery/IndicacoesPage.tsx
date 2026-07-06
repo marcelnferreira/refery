@@ -5,6 +5,7 @@ import { Input } from '@/components/ui/input';
 import { KanbanBoard } from '@/components/refery/KanbanBoard';
 import { IndicacaoModal } from '@/components/refery/IndicacaoModal';
 import { StatusBadge } from '@/components/refery/StatusBadge';
+import { StatusCustomBadge } from '@/components/refery/StatusCustomBadge';
 import { HistoricoModal } from '@/components/refery/HistoricoModal';
 import LigacaoModal from '@/components/refery/LigacaoModal';
 import { useIndicacoes, useClientesAtivos } from '@/hooks/useRefery';
@@ -72,10 +73,11 @@ export default function IndicacoesPage() {
               <table className="w-full text-sm">
                 <thead className="bg-gray-50 border-b">
                   <tr>
+                    <th className="text-left px-4 py-3 font-medium text-gray-600">Status</th>
                     <th className="text-left px-4 py-3 font-medium text-gray-600">Nome</th>
                     <th className="text-left px-4 py-3 font-medium text-gray-600">Telefone</th>
                     <th className="text-left px-4 py-3 font-medium text-gray-600">Indicado por</th>
-                    <th className="text-left px-4 py-3 font-medium text-gray-600">Status</th>
+                    <th className="text-left px-4 py-3 font-medium text-gray-600">Etapa do Funil</th>
                     <th className="text-left px-4 py-3 font-medium text-gray-600">Cadastro</th>
                     <th className="px-4 py-3"></th>
                   </tr>
@@ -83,6 +85,9 @@ export default function IndicacoesPage() {
                 <tbody className="divide-y">
                   {filtradas.map(ind => (
                     <tr key={ind.id} className="hover:bg-gray-50 transition-colors">
+                      <td className="px-4 py-3">
+                        <StatusCustomBadge codigo={ind.status_custom} />
+                      </td>
                       <td className="px-4 py-3 font-medium">{ind.nome}</td>
                       <td className="px-4 py-3 text-muted-foreground">{ind.telefone}</td>
                       <td className="px-4 py-3 text-muted-foreground">

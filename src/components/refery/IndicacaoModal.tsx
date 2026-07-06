@@ -5,10 +5,12 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { useClientesAtivos, useCreateIndicacao, useUpdateIndicacao } from '@/hooks/useRefery';
+import { useClientesAtivos, useCreateIndicacao, useUpdateIndicacao, useStatusIndicacao } from '@/hooks/useRefery';
 import type { Indicacao, IndicacaoStatus } from '@/types/refery';
-import { INDICACAO_STATUS_LABELS } from '@/types/refery';
+import { INDICACAO_STATUS_LABELS, STATUS_CORES } from '@/types/refery';
 import { Loader2 } from 'lucide-react';
+
+const SEM_STATUS = '__none__';
 
 interface IndicacaoModalProps {
   open: boolean;
@@ -22,6 +24,7 @@ export function IndicacaoModal({
   open, onClose, indicacao, statusInicial = 'novo', indicadorPreSelecionado,
 }: IndicacaoModalProps) {
   const { data: clientes = [] } = useClientesAtivos();
+  const { data: statusCustomList = [] } = useStatusIndicacao();
   const createIndicacao = useCreateIndicacao();
   const updateIndicacao = useUpdateIndicacao();
 
@@ -30,9 +33,12 @@ export function IndicacaoModal({
   const [email, setEmail] = useState('');
   const [indicadoPorId, setIndicadoPorId] = useState('');
   const [status, setStatus] = useState<IndicacaoStatus>(statusInicial);
+  const [statusCustom, setStatusCustom] = useState<string>(SEM_STATUS);
   const [observacoes, setObservacoes] = useState('');
   const [motivoPerda, setMotivoPerda] = useState('');
   const [dataReuniao, setDataReuniao] = useState('');
+
+  const statusAtivos = statusCustomList.filter(s => s.ativo);
 
   const isEditing = !!indicacao;
   const loading = createIndicacao.isPending || updateIndicacao.isPending;
@@ -44,6 +50,7 @@ export function IndicacaoModal({
       setEmail(indicacao.email ?? '');
       setIndicadoPorId(indicacao.indicado_por_id);
       setStatus(indicacao.status);
+      setStatusCustom(indicacao.status_custom ?? SEM_STATUS);
       setObservacoes(indicacao.observacoes ?? '');
       setMotivoPerda(indicacao.motivo_perda ?? '');
       setDataReuniao(indicacao.data_reuniao ? indicacao.data_reuniao.slice(0, 16) : '');
@@ -51,6 +58,7 @@ export function IndicacaoModal({
       setNome(''); setTelefone(''); setEmail('');
       setIndicadoPorId(indicadorPreSelecionado ?? '');
       setStatus(statusInicial);
+      setStatusCustom(SEM_STATUS);
       setObservacoes(''); setMotivoPerda(''); setDataReuniao('');
     }
   }, [indicacao, open, indicadorPreSelecionado, statusInicial]);
@@ -59,11 +67,14 @@ export function IndicacaoModal({
     e.preventDefault();
     if (!nome.trim() || !telefone.trim() || !indicadoPorId) return;
 
+    const statusCustomValue = statusCustom === SEM_STATUS ? null : statusCustom;
+
     if (isEditing) {
       await updateIndicacao.mutateAsync({
         id: indicacao!.id, nome, telefone,
         email: email || null, indicado_por_id: indicadoPorId,
-        status, observacoes: observacoes || null,
+        status, status_custom: statusCustomValue,
+        observacoes: observacoes || null,
         motivo_perda: motivoPerda || null,
         data_reuniao: dataReuniao ? new Date(dataReuniao).toISOString() : null,
       });
@@ -71,6 +82,7 @@ export function IndicacaoModal({
       await createIndicacao.mutateAsync({
         nome, telefone, email: email || undefined,
         indicado_por_id: indicadoPorId, observacoes: observacoes || undefined,
+        status_custom: statusCustomValue,
       });
     }
     onClose();
@@ -114,9 +126,34 @@ export function IndicacaoModal({
             </Select>
           </div>
 
+          {statusAtivos.length > 0 && (
+            <div className="space-y-2">
+              <Label>Status de acompanhamento</Label>
+              <Select value={statusCustom} onValueChange={setStatusCustom}>
+                <SelectTrigger>
+                  <SelectValue placeholder="Selecione o status" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value={SEM_STATUS}>
+                    <span className="text-muted-foreground">Nenhum</span>
+                  </SelectItem>
+                  {statusAtivos.map(s => (
+                    <SelectItem key={s.id} value={s.codigo}>
+                      <span className="flex items-center gap-2">
+                        <span className={`w-2.5 h-2.5 rounded-full ${STATUS_CORES[s.cor]?.dot ?? 'bg-gray-400'}`} />
+                        <span className="font-mono font-bold text-xs">{s.codigo}</span>
+                        <span>{s.descricao}</span>
+                      </span>
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+          )}
+
           {isEditing && (
             <div className="space-y-2">
-              <Label>Status</Label>
+              <Label>Etapa do Funil</Label>
               <Select value={status} onValueChange={v => setStatus(v as IndicacaoStatus)}>
                 <SelectTrigger>
                   <SelectValue />

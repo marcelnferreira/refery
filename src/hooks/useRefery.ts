@@ -237,7 +237,7 @@ export function useCreateIndicacao() {
   const qc = useQueryClient();
   const { user } = useAuth();
   return useMutation({
-    mutationFn: async (input: { nome: string; telefone: string; email?: string; indicado_por_id: string; observacoes?: string }) => {
+    mutationFn: async (input: { nome: string; telefone: string; email?: string; indicado_por_id: string; observacoes?: string; status_custom?: string | null }) => {
       const contaId = await getContaId(user!.uid);
       if (!contaId) throw new Error('Conta não encontrada');
 
@@ -246,6 +246,7 @@ export function useCreateIndicacao() {
         ...input,
         email: input.email ?? null,
         observacoes: input.observacoes ?? null,
+        status_custom: input.status_custom ?? null,
         status: 'novo',
         motivo_perda: null,
         data_reuniao: null,
@@ -294,16 +295,28 @@ export function useUpdateIndicacao() {
       const ref = doc(db, 'contas', contaId, 'indicacoes', id);
 
       // Detectar mudança de status para log
-      if (updates.status) {
+      if (updates.status || updates.status_custom !== undefined) {
         const prev = await getDoc(ref);
         const prevStatus = prev.data()?.status;
-        if (prevStatus && prevStatus !== updates.status) {
+        const prevCustom = prev.data()?.status_custom ?? null;
+        if (updates.status && prevStatus && prevStatus !== updates.status) {
           await addDoc(collection(db, 'contas', contaId, 'historico'), {
             conta_id: contaId,
             indicacao_id: id,
             tipo: 'mudanca_status',
             descricao: `Status alterado de "${prevStatus}" para "${updates.status}"`,
             dados: { status_anterior: prevStatus, status_novo: updates.status },
+            usuario_id: user!.uid,
+            created_at: serverTimestamp(),
+          });
+        }
+        if (updates.status_custom !== undefined && prevCustom !== updates.status_custom) {
+          await addDoc(collection(db, 'contas', contaId, 'historico'), {
+            conta_id: contaId,
+            indicacao_id: id,
+            tipo: 'mudanca_status',
+            descricao: `Status de acompanhamento alterado de "${prevCustom ?? '—'}" para "${updates.status_custom ?? '—'}"`,
+            dados: { status_custom_anterior: prevCustom, status_custom_novo: updates.status_custom },
             usuario_id: user!.uid,
             created_at: serverTimestamp(),
           });

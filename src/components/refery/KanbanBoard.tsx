@@ -3,6 +3,7 @@ import { useIndicacoes, useUpdateIndicacao, useConverterParaCliente } from '@/ho
 import { KANBAN_COLUMNS, INDICACAO_STATUS_LABELS } from '@/types/refery';
 import type { Indicacao, IndicacaoStatus } from '@/types/refery';
 import { StatusBadge } from './StatusBadge';
+import { StatusCustomBadge } from './StatusCustomBadge';
 import { IndicacaoModal } from './IndicacaoModal';
 import { HistoricoModal } from './HistoricoModal';
 import { Button } from '@/components/ui/button';
@@ -115,7 +116,10 @@ export function KanbanBoard() {
               >
                 <div className="flex items-start justify-between gap-1">
                   <div className="flex-1 min-w-0">
-                    <p className="font-medium text-sm text-gray-900 truncate">{ind.nome}</p>
+                    <div className="flex items-center gap-1.5">
+                      <p className="font-medium text-sm text-gray-900 truncate">{ind.nome}</p>
+                      {ind.status_custom && <StatusCustomBadge codigo={ind.status_custom} />}
+                    </div>
                     <div className="flex items-center gap-1 text-xs text-gray-500 mt-0.5">
                       <User className="h-3 w-3" />
                       <span className="truncate">{ind.cliente_indicador?.nome ?? '—'}</span>
