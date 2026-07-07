@@ -788,3 +788,164 @@ export function useDeleteStatusIndicacao() {
     onError: (e: any) => toast.error(e.message),
   });
 }
+
+// ============================================================
+// IMPORTAÇÃO DE PLANILHA
+// ============================================================
+
+export interface ResultadoImportacao {
+  indicacoesCriadas: number;
+  indicacoesPuladas: number;
+  clientesCriados: number;
+  ligacoesCriadas: number;
+}
+
+export function useImportarPlanilha() {
+  const qc = useQueryClient();
+  const { user } = useAuth();
+  return useMutation<ResultadoImportacao, Error, {
+    linhas: Array<{
+      nome: string; telefone: string; status_custom: string | null;
+      cidade: string | null; profissao: string | null;
+      situacao_familiar: SituacaoFamiliar | null; contexto: string | null;
+      data_inclusao: Date | null; quem_recomendou: string | null;
+      ligacoes: Array<{ data: Date | null; resultado: string }>;
+    }>;
+    inferirStatus: (resultado: string) => 'realizada' | 'nao_atendeu';
+  }>({
+    mutationFn: async ({ linhas, inferirStatus }) => {
+      const contaId = await getContaId(user!.uid);
+      if (!contaId) throw new Error('Conta não encontrada');
+
+      // Clientes existentes (para casar "Quem Recomendou" pelo nome)
+      const cliSnap = await getDocs(collection(db, 'contas', contaId, 'clientes'));
+      const clientesPorNome = new Map<string, string>();
+      cliSnap.docs.forEach(d => {
+        const nome = String(d.data().nome ?? '').toLowerCase().trim();
+        if (nome) clientesPorNome.set(nome, d.id);
+      });
+
+      // Indicações existentes (para não duplicar pelo telefone)
+      const indSnap = await getDocs(collection(db, 'contas', contaId, 'indicacoes'));
+      const telefonesExistentes = new Set(
+        indSnap.docs.map(d => String(d.data().telefone ?? '').replace(/\D/g, '')).filter(Boolean)
+      );
+
+      let indicacoesCriadas = 0, indicacoesPuladas = 0, clientesCriados = 0, ligacoesCriadas = 0;
+
+      const obterOuCriarIndicador = async (nomeIndicador: string): Promise<string> => {
+        const chave = nomeIndicador.toLowerCase().trim();
+        const existente = clientesPorNome.get(chave);
+        if (existente) return existente;
+        const ref = await addDoc(collection(db, 'contas', contaId, 'clientes'), {
+          conta_id: contaId,
+          nome: nomeIndicador,
+          telefone: '',
+          email: null,
+          observacoes: 'Criado automaticamente na importação da planilha',
+          indicacao_origem_id: null,
+          indicado_por_id: null,
+          numero_apolice: null,
+          data_inicio_apolice: null,
+          ativo: true,
+          total_indicacoes: 0,
+          ultimo_contato: null,
+          created_at: serverTimestamp(),
+          updated_at: serverTimestamp(),
+        });
+        clientesPorNome.set(chave, ref.id);
+        clientesCriados++;
+        return ref.id;
+      };
+
+      for (const linha of linhas) {
+        const tel = linha.telefone.replace(/\D/g, '');
+        if (tel && telefonesExistentes.has(tel)) { indicacoesPuladas++; continue; }
+
+        const indicadorId = await obterOuCriarIndicador(linha.quem_recomendou || 'Importação Planilha');
+
+        const criadoEm = linha.data_inclusao
+          ? Timestamp.fromDate(linha.data_inclusao)
+          : serverTimestamp();
+
+        const indRef = await addDoc(collection(db, 'contas', contaId, 'indicacoes'), {
+          conta_id: contaId,
+          nome: linha.nome,
+          telefone: linha.telefone,
+          email: null,
+          indicado_por_id: indicadorId,
+          status: 'novo',
+          status_custom: linha.status_custom,
+          cidade: linha.cidade,
+          profissao: linha.profissao,
+          situacao_familiar: linha.situacao_familiar,
+          contexto: linha.contexto,
+          observacoes: null,
+          motivo_perda: null,
+          data_reuniao: null,
+          via_bot: false,
+          google_event_id: null,
+          created_at: criadoEm,
+          updated_at: serverTimestamp(),
+        });
+        indicacoesCriadas++;
+        if (tel) telefonesExistentes.add(tel);
+
+        // Histórico de ligações da planilha
+        for (const lig of linha.ligacoes) {
+          if (!lig.data && !lig.resultado) continue;
+          await addDoc(collection(db, 'contas', contaId, 'ligacoes'), {
+            conta_id: contaId,
+            contato_id: indRef.id,
+            contato_tipo: 'indicacao',
+            contato_nome: linha.nome,
+            contato_telefone: linha.telefone,
+            status: inferirStatus(lig.resultado),
+            duracao_segundos: 0,
+            transcricao: null,
+            resumo_ia: lig.resultado || null,
+            pontos_chave: [],
+            proxima_acao: null,
+            created_at: lig.data ? Timestamp.fromDate(lig.data) : serverTimestamp(),
+          });
+          ligacoesCriadas++;
+        }
+
+        // Log no histórico da indicação
+        await addDoc(collection(db, 'contas', contaId, 'historico'), {
+          conta_id: contaId,
+          indicacao_id: indRef.id,
+          tipo: 'criacao',
+          descricao: 'Indicação importada da planilha',
+          usuario_id: user!.uid,
+          created_at: serverTimestamp(),
+        });
+      }
+
+      // Atualiza contadores de indicações dos clientes indicadores
+      const contagem = new Map<string, number>();
+      for (const linha of linhas) {
+        const chave = (linha.quem_recomendou || 'Importação Planilha').toLowerCase().trim();
+        const id = clientesPorNome.get(chave);
+        if (id) contagem.set(id, (contagem.get(id) ?? 0) + 1);
+      }
+      for (const [cliId, extra] of contagem) {
+        const cliRef = doc(db, 'contas', contaId, 'clientes', cliId);
+        const cli = await getDoc(cliRef);
+        if (cli.exists()) {
+          await updateDoc(cliRef, { total_indicacoes: (cli.data().total_indicacoes ?? 0) + extra });
+        }
+      }
+
+      return { indicacoesCriadas, indicacoesPuladas, clientesCriados, ligacoesCriadas };
+    },
+    onSuccess: (r) => {
+      qc.invalidateQueries({ queryKey: ['indicacoes'] });
+      qc.invalidateQueries({ queryKey: ['clientes_ativos'] });
+      qc.invalidateQueries({ queryKey: ['ligacoes'] });
+      qc.invalidateQueries({ queryKey: ['historico'] });
+      toast.success(`Importação concluída: ${r.indicacoesCriadas} indicações criadas!`);
+    },
+    onError: (e: any) => toast.error(e.message),
+  });
+}

@@ -8,9 +8,10 @@ import { StatusBadge } from '@/components/refery/StatusBadge';
 import { StatusCustomBadge } from '@/components/refery/StatusCustomBadge';
 import { HistoricoModal } from '@/components/refery/HistoricoModal';
 import LigacaoModal from '@/components/refery/LigacaoModal';
+import { ImportarPlanilhaModal } from '@/components/refery/ImportarPlanilhaModal';
 import { useIndicacoes, useClientesAtivos } from '@/hooks/useRefery';
 import type { Indicacao } from '@/types/refery';
-import { Plus, Search, Phone, User, Calendar } from 'lucide-react';
+import { Plus, Search, Phone, User, Calendar, FileSpreadsheet } from 'lucide-react';
 import { format } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
 
@@ -22,6 +23,7 @@ export default function IndicacoesPage() {
   const [indicacaoHistorico, setIndicacaoHistorico] = useState<Indicacao | null>(null);
   const [busca, setBusca] = useState('');
   const [ligacaoIndicacao, setLigacaoIndicacao] = useState<Indicacao | null>(null);
+  const [importOpen, setImportOpen] = useState(false);
 
   const filtradas = indicacoes.filter(i =>
     i.nome.toLowerCase().includes(busca.toLowerCase()) ||
@@ -36,10 +38,16 @@ export default function IndicacoesPage() {
           <h1 className="text-2xl font-bold text-gray-900">Indicações</h1>
           <p className="text-sm text-muted-foreground mt-0.5">{indicacoes.length} indicações no total</p>
         </div>
-        <Button onClick={() => { setEditando(null); setModalOpen(true); }}>
-          <Plus className="h-4 w-4 mr-2" />
-          Nova Indicação
-        </Button>
+        <div className="flex gap-2">
+          <Button variant="outline" onClick={() => setImportOpen(true)}>
+            <FileSpreadsheet className="h-4 w-4 mr-2" />
+            Importar Excel
+          </Button>
+          <Button onClick={() => { setEditando(null); setModalOpen(true); }}>
+            <Plus className="h-4 w-4 mr-2" />
+            Nova Indicação
+          </Button>
+        </div>
       </div>
 
       <Tabs defaultValue="kanban">
@@ -154,6 +162,8 @@ export default function IndicacoesPage() {
           onClose={() => setLigacaoIndicacao(null)}
         />
       )}
+
+      <ImportarPlanilhaModal open={importOpen} onClose={() => setImportOpen(false)} />
     </div>
   );
 }
