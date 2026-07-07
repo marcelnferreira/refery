@@ -37,7 +37,7 @@ export function CentralTelefonica() {
   const { data: indicacoes = [] } = useIndicacoes();
   const salvarLigacao = useSalvarLigacao();
   const uploadGravacao = useUploadGravacao();
-  const { segmentos, transcrevendo, iniciarTranscricao, pararTranscricao, getTextoFinal } = useReferyTranscription();
+  const { segmentos, transcrevendo, erro: erroTranscricao, iniciarTranscricao, pararTranscricao, getTextoFinal } = useReferyTranscription();
 
   const [expandido, setExpandido] = useState(false);
   const [fase, setFase] = useState<Fase>('ocioso');
@@ -464,9 +464,14 @@ export function CentralTelefonica() {
                 </div>
                 <ScrollArea className="h-40">
                   <div ref={scrollRef} className="p-3 space-y-1.5 text-sm">
-                    {segmentos.length === 0 && (
+                    {erroTranscricao && (
+                      <p className="text-xs text-red-600 bg-red-50 rounded px-2 py-1.5 mb-1.5">
+                        {erroTranscricao}
+                      </p>
+                    )}
+                    {segmentos.length === 0 && !erroTranscricao && (
                       <p className="text-xs text-muted-foreground text-center italic py-6">
-                        {transcrevendo ? 'Aguardando fala...' : 'Transcrição indisponível'}
+                        {transcrevendo ? 'Aguardando fala...' : sonioxKey ? 'Conectando à transcrição...' : 'Chave Soniox não configurada'}
                       </p>
                     )}
                     {segmentos.filter(s => s.is_final).map(s => (
