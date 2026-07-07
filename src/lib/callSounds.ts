@@ -61,6 +61,7 @@ export function playConnected() {
 // ---- Desligou / caiu: tom de ocupado (3 ciclos) ----
 export function playHangup() {
   stopRingback();
+  stopIncomingRing();
   const ac = getCtx();
   const t = ac.currentTime;
   for (let i = 0; i < 3; i++) {
@@ -68,8 +69,28 @@ export function playHangup() {
   }
 }
 
+// ---- Chamada recebida: dois beeps alegres repetindo a cada 2.2s ----
+let incomingTimer: ReturnType<typeof setInterval> | null = null;
+
+export function startIncomingRing() {
+  stopIncomingRing();
+  const play = () => {
+    const ac = getCtx();
+    const t = ac.currentTime;
+    tone(880, t, 0.14, 0.1, 'triangle');
+    tone(1108, t + 0.16, 0.16, 0.1, 'triangle');
+  };
+  play();
+  incomingTimer = setInterval(play, 2200);
+}
+
+export function stopIncomingRing() {
+  if (incomingTimer) { clearInterval(incomingTimer); incomingTimer = null; }
+}
+
 // Libera o AudioContext (chamar ao desmontar o modal)
 export function disposeSounds() {
   stopRingback();
+  stopIncomingRing();
   if (ctx && ctx.state !== 'closed') { ctx.close().catch(() => {}); ctx = null; }
 }
