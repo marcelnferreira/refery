@@ -1,5 +1,6 @@
 import { SidebarProvider, SidebarTrigger, SidebarInset } from '@/components/ui/sidebar';
 import { AppSidebar } from './AppSidebar';
+import { CentralTelefonica } from '@/components/refery/CentralTelefonica';
 
 interface AppLayoutProps {
   children: React.ReactNode;
@@ -18,6 +19,7 @@ export function AppLayout({ children }: AppLayoutProps) {
           {children}
         </main>
       </SidebarInset>
+      <CentralTelefonica />
     </SidebarProvider>
   );
 }

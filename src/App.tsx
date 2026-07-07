@@ -3,7 +3,7 @@ import { Toaster } from "@/components/ui/toaster";
 import { Toaster as Sonner } from "@/components/ui/sonner";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import { BrowserRouter, Routes, Route, Navigate } from "react-router-dom";
+import { BrowserRouter, Routes, Route, Navigate, Outlet } from "react-router-dom";
 import { ThemeProvider } from "next-themes";
 import { useAuth } from "@/hooks/useAuth";
 import { AppLayout } from "@/components/layout/AppLayout";
@@ -41,7 +41,10 @@ function LoginPage() {
   return <AuthForm />;
 }
 
-function ProtectedRoute({ children }: { children: React.ReactNode }) {
+// Layout persistente: fica montado durante toda a navegação entre páginas
+// autenticadas, para que widgets globais (ex: Central Telefônica) não percam
+// conexão ao trocar de tela.
+function ProtectedLayout() {
   const { isAuthenticated, loading } = useAuth();
   if (loading) {
     return (
@@ -51,7 +54,11 @@ function ProtectedRoute({ children }: { children: React.ReactNode }) {
     );
   }
   if (!isAuthenticated) return <Navigate to="/" replace />;
-  return <AppLayout>{children}</AppLayout>;
+  return (
+    <AppLayout>
+      <Outlet />
+    </AppLayout>
+  );
 }
 
 const App = () => {
@@ -78,15 +85,17 @@ const App = () => {
           <BrowserRouter>
             <Routes>
               <Route path="/" element={<LoginPage />} />
-              <Route path="/dashboard" element={<ProtectedRoute><DashboardPage /></ProtectedRoute>} />
-              <Route path="/indicacoes" element={<ProtectedRoute><IndicacoesPage /></ProtectedRoute>} />
-              <Route path="/clientes" element={<ProtectedRoute><ClientesPage /></ProtectedRoute>} />
-              <Route path="/agenda" element={<ProtectedRoute><AgendaPage /></ProtectedRoute>} />
-              <Route path="/arvore" element={<ProtectedRoute><ArvoreIndicacoesPage /></ProtectedRoute>} />
-              <Route path="/funil" element={<ProtectedRoute><FunilPage /></ProtectedRoute>} />
-              <Route path="/whatsapp" element={<ProtectedRoute><WhatsappPage /></ProtectedRoute>} />
-              <Route path="/configuracoes" element={<ProtectedRoute><ConfiguracoesPage /></ProtectedRoute>} />
-              <Route path="/usuarios" element={<ProtectedRoute><UsuariosPage /></ProtectedRoute>} />
+              <Route element={<ProtectedLayout />}>
+                <Route path="/dashboard" element={<DashboardPage />} />
+                <Route path="/indicacoes" element={<IndicacoesPage />} />
+                <Route path="/clientes" element={<ClientesPage />} />
+                <Route path="/agenda" element={<AgendaPage />} />
+                <Route path="/arvore" element={<ArvoreIndicacoesPage />} />
+                <Route path="/funil" element={<FunilPage />} />
+                <Route path="/whatsapp" element={<WhatsappPage />} />
+                <Route path="/configuracoes" element={<ConfiguracoesPage />} />
+                <Route path="/usuarios" element={<UsuariosPage />} />
+              </Route>
               <Route path="*" element={<Navigate to="/" replace />} />
             </Routes>
           </BrowserRouter>
