@@ -19,6 +19,7 @@ import AgendaPage from "@/pages/refery/AgendaPage";
 import ArvoreIndicacoesPage from "@/pages/refery/ArvoreIndicacoesPage";
 import FunilPage from "@/pages/refery/FunilPage";
 import WhatsappPage from "@/pages/refery/WhatsappPage";
+import CentralLigacoesPage from "@/pages/refery/CentralLigacoesPage";
 import ConfiguracoesPage from "@/pages/refery/ConfiguracoesPage";
 import UsuariosPage from "@/pages/refery/UsuariosPage";
 
@@ -93,6 +94,7 @@ const App = () => {
                 <Route path="/arvore" element={<ArvoreIndicacoesPage />} />
                 <Route path="/funil" element={<FunilPage />} />
                 <Route path="/whatsapp" element={<WhatsappPage />} />
+                <Route path="/ligacoes" element={<CentralLigacoesPage />} />
                 <Route path="/configuracoes" element={<ConfiguracoesPage />} />
                 <Route path="/usuarios" element={<UsuariosPage />} />
               </Route>

@@ -9,7 +9,7 @@ import { useConta, useCurrentUserRole } from '@/hooks/useRefery';
 import { Button } from '@/components/ui/button';
 import {
   LayoutDashboard, Users, UserCheck, CalendarDays, GitBranch,
-  Settings, LogOut, Crown, TrendingUp, MessageCircle,
+  Settings, LogOut, Crown, TrendingUp, MessageCircle, PhoneCall,
 } from 'lucide-react';
 
 const menuPrincipal = [
@@ -18,6 +18,7 @@ const menuPrincipal = [
   { title: 'Funil de Conversão', url: '/funil', icon: TrendingUp, apenasOwner: true },
   { title: 'Clientes Ativos', url: '/clientes', icon: UserCheck, apenasOwner: false },
   { title: 'WhatsApp CRM', url: '/whatsapp', icon: MessageCircle, apenasOwner: false },
+  { title: 'Central Telefônica', url: '/ligacoes', icon: PhoneCall, apenasOwner: false },
   { title: 'Agenda de Ligações', url: '/agenda', icon: CalendarDays, apenasOwner: false },
   { title: 'Árvore de Indicações', url: '/arvore', icon: GitBranch, apenasOwner: true },
 ];
