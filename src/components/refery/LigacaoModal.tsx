@@ -34,7 +34,7 @@ type StatusChamada = 'realizada' | 'nao_atendeu' | 'ocupado';
 export default function LigacaoModal({ contatoId, contatoTipo, contatoNome, contatoTelefone, onClose }: Props) {
   const { data: conta } = useConta();
   const salvarLigacao = useSalvarLigacao();
-  const { segmentos, transcrevendo, iniciarTranscricao, pararTranscricao, getTextoFinal } = useReferyTranscription();
+  const { segmentos, transcrevendo, erro: erroTranscricao, iniciarTranscricao, pararTranscricao, getTextoFinal } = useReferyTranscription();
 
   const [fase, setFase] = useState<Fase>('idle');
   const [duracao, setDuracao] = useState(0);
@@ -307,7 +307,12 @@ export default function LigacaoModal({ contatoId, contatoTipo, contatoNome, cont
                 </div>
                 <ScrollArea className="flex-1 h-[300px]">
                   <div ref={scrollRef} className="p-3 space-y-1.5 text-sm">
-                    {segmentos.length === 0 && (
+                    {erroTranscricao && (
+                      <p className="text-xs text-red-600 bg-red-50 rounded px-2 py-1.5">
+                        {erroTranscricao}
+                      </p>
+                    )}
+                    {segmentos.length === 0 && !erroTranscricao && (
                       <p className="text-xs text-muted-foreground text-center italic py-6">
                         {transcrevendo ? 'Aguardando fala...' : 'Soniox não configurado — transcrição indisponível'}
                       </p>

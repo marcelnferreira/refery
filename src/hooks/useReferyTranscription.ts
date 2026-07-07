@@ -57,19 +57,22 @@ export function useReferyTranscription() {
       ws.binaryType = 'arraybuffer';
       refs.current.ws = ws;
 
-      ws.onopen = () => {
+      ws.onopen = async () => {
         ws.send(JSON.stringify({
           api_key: apiKey,
-          model: 'stt-rt-preview',
-          language_code: 'pt',
-          sample_rate: SAMPLE_RATE,
+          model: 'stt-rt-v5',
           audio_format: 'pcm_s16le',
+          sample_rate: SAMPLE_RATE,
           num_channels: 1,
-          include_nonfinal: true,
+          language_hints: ['pt'],
         }));
 
         const audioContext = new AudioContext({ sampleRate: SAMPLE_RATE });
         refs.current.audioContext = audioContext;
+        // Autoplay policy: garante que o contexto está rodando (senão nenhum áudio é processado)
+        if (audioContext.state === 'suspended') {
+          try { await audioContext.resume(); } catch {}
+        }
         const source = audioContext.createMediaStreamSource(stream);
         refs.current.source = source;
         const processor = audioContext.createScriptProcessor(4096, 1, 1);
@@ -89,10 +92,17 @@ export function useReferyTranscription() {
       ws.onmessage = (event) => {
         try {
           const data = JSON.parse(event.data);
-          if (data.error_code || !data.tokens?.length) return;
+          if (data.error_code) {
+            console.error('[Soniox] erro:', data.error_code, data.error_message);
+            setErro(`Soniox: ${data.error_message ?? data.error_code}`);
+            return;
+          }
+          if (!data.tokens?.length) return;
 
-          const finals = data.tokens.filter((t: any) => t.is_final).map((t: any) => t.text);
-          const nonFinals = data.tokens.filter((t: any) => !t.is_final).map((t: any) => t.text);
+          // Ignora tokens especiais de controle (ex: <end>, <fin>)
+          const tokens = data.tokens.filter((t: any) => t.text && !t.text.startsWith('<'));
+          const finals = tokens.filter((t: any) => t.is_final).map((t: any) => t.text);
+          const nonFinals = tokens.filter((t: any) => !t.is_final).map((t: any) => t.text);
 
           if (finals.length > 0) {
             tokenBuffer.push(...finals);
@@ -113,7 +123,9 @@ export function useReferyTranscription() {
       };
 
       ws.onerror = () => reject(new Error('Erro WebSocket Soniox'));
-      ws.onclose = () => {};
+      ws.onclose = (e) => {
+        if (e.code !== 1000) console.warn('[Soniox] conexão fechada:', e.code, e.reason);
+      };
     });
   }, [addSegmento]);
 
