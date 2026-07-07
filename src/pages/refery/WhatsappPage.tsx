@@ -7,6 +7,7 @@ import {
   useMensagensWhatsapp, useSalvarMensagem,
 } from '@/hooks/useRefery';
 import { uazapiEnviarTexto } from '@/lib/uazapi';
+import LigacaoModal from '@/components/refery/LigacaoModal';
 import type { ClienteAtivo, Indicacao } from '@/types/refery';
 import { INDICACAO_STATUS_LABELS } from '@/types/refery';
 import {
@@ -36,6 +37,7 @@ export default function WhatsappPage() {
   const [contatoAtivo, setContatoAtivo] = useState<Contato | null>(null);
   const [texto, setTexto] = useState('');
   const [enviando, setEnviando] = useState(false);
+  const [ligacaoAtiva, setLigacaoAtiva] = useState<Contato | null>(null);
 
   const phoneAtivo = contatoAtivo
     ? telefoneNumerico(contatoAtivo.dado.telefone)
@@ -158,37 +160,48 @@ export default function WhatsappPage() {
                 .sort((a, b) => b.created_at.localeCompare(a.created_at))[0];
 
               return (
-                <button
+                <div
                   key={`${c.tipo}-${c.dado.id}`}
-                  onClick={() => setContatoAtivo(c)}
-                  className={`w-full text-left px-4 py-3 border-b hover:bg-gray-50 transition-colors ${isAtivo ? 'bg-green-50 border-l-2 border-l-green-500' : ''}`}
+                  className={`group relative border-b transition-colors ${isAtivo ? 'bg-green-50 border-l-2 border-l-green-500' : 'hover:bg-gray-50'}`}
                 >
-                  <div className="flex items-center gap-2.5">
-                    <div className={`w-9 h-9 rounded-full flex items-center justify-center shrink-0 text-white text-sm font-bold ${c.tipo === 'cliente' ? 'bg-blue-500' : 'bg-yellow-500'}`}>
-                      {c.dado.nome.charAt(0).toUpperCase()}
-                    </div>
-                    <div className="flex-1 min-w-0">
-                      <div className="flex items-center gap-1.5">
-                        <span className="text-sm font-medium truncate">{c.dado.nome}</span>
-                        {c.tipo === 'cliente' ? (
-                          <UserCheck className="h-3 w-3 text-blue-400 shrink-0" />
-                        ) : (
-                          <Users className="h-3 w-3 text-yellow-500 shrink-0" />
-                        )}
+                  <button
+                    onClick={() => setContatoAtivo(c)}
+                    className="w-full text-left px-4 py-3"
+                  >
+                    <div className="flex items-center gap-2.5">
+                      <div className={`w-9 h-9 rounded-full flex items-center justify-center shrink-0 text-white text-sm font-bold ${c.tipo === 'cliente' ? 'bg-blue-500' : 'bg-yellow-500'}`}>
+                        {c.dado.nome.charAt(0).toUpperCase()}
                       </div>
-                      <p className="text-xs text-muted-foreground truncate">
-                        {ultimaMensagem
-                          ? ultimaMensagem.message
-                          : c.dado.telefone}
-                      </p>
+                      <div className="flex-1 min-w-0">
+                        <div className="flex items-center gap-1.5">
+                          <span className="text-sm font-medium truncate">{c.dado.nome}</span>
+                          {c.tipo === 'cliente' ? (
+                            <UserCheck className="h-3 w-3 text-blue-400 shrink-0" />
+                          ) : (
+                            <Users className="h-3 w-3 text-yellow-500 shrink-0" />
+                          )}
+                        </div>
+                        <p className="text-xs text-muted-foreground truncate pr-6">
+                          {ultimaMensagem
+                            ? ultimaMensagem.message
+                            : c.dado.telefone}
+                        </p>
+                      </div>
+                      {ultimaMensagem && (
+                        <span className="text-xs text-muted-foreground shrink-0 group-hover:hidden">
+                          {format(new Date(ultimaMensagem.created_at), "HH:mm")}
+                        </span>
+                      )}
                     </div>
-                    {ultimaMensagem && (
-                      <span className="text-xs text-muted-foreground shrink-0">
-                        {format(new Date(ultimaMensagem.created_at), "HH:mm")}
-                      </span>
-                    )}
-                  </div>
-                </button>
+                  </button>
+                  <button
+                    onClick={(e) => { e.stopPropagation(); setLigacaoAtiva(c); }}
+                    title="Ligar"
+                    className="hidden group-hover:flex absolute right-3 top-1/2 -translate-y-1/2 h-7 w-7 items-center justify-center rounded-full bg-green-500 text-white hover:bg-green-600 shadow-sm"
+                  >
+                    <Phone className="h-3.5 w-3.5" />
+                  </button>
+                </div>
               );
             })
           )}
@@ -225,6 +238,15 @@ export default function WhatsappPage() {
                 {telefoneContato}
               </div>
             </div>
+            <Button
+              size="sm"
+              variant="outline"
+              className="h-8 text-xs text-green-600 border-green-200 hover:bg-green-50 hover:text-green-700"
+              onClick={() => setLigacaoAtiva(contatoAtivo)}
+            >
+              <Phone className="h-3.5 w-3.5 mr-1.5" />
+              Ligar
+            </Button>
             <a
               href={`https://wa.me/${telefoneNumerico(telefoneContato)}`}
               target="_blank"
@@ -305,6 +327,16 @@ export default function WhatsappPage() {
             Seus clientes ativos e indicações aparecem na lista ao lado. Clique em um para abrir o chat.
           </p>
         </div>
+      )}
+
+      {ligacaoAtiva && (
+        <LigacaoModal
+          contatoId={ligacaoAtiva.dado.id}
+          contatoTipo={ligacaoAtiva.tipo}
+          contatoNome={ligacaoAtiva.dado.nome}
+          contatoTelefone={ligacaoAtiva.dado.telefone}
+          onClose={() => setLigacaoAtiva(null)}
+        />
       )}
     </div>
   );
