@@ -2,7 +2,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/u
 import { Badge } from '@/components/ui/badge';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import type { Ligacao } from '@/types/refery';
-import { Phone, PhoneMissed, PhoneOff, Clock, MessageSquareText, Sparkles } from 'lucide-react';
+import { Phone, PhoneMissed, PhoneOff, Clock, MessageSquareText, Sparkles, Volume2 } from 'lucide-react';
 import { format } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
 
@@ -83,6 +83,15 @@ export function DetalheLigacaoModal({ ligacao, onClose }: Props) {
             </div>
           )}
 
+          {ligacao.gravacao_url && (
+            <div className="space-y-1">
+              <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide flex items-center gap-1">
+                <Volume2 className="h-3 w-3" /> Gravação da ligação
+              </p>
+              <audio controls preload="none" src={ligacao.gravacao_url} className="w-full h-10" />
+            </div>
+          )}
+
           {ligacao.proxima_acao && (
             <div className="bg-blue-50 rounded-lg px-3 py-2">
               <p className="text-xs font-semibold text-blue-600 uppercase tracking-wide">Próxima ação</p>
@@ -101,9 +110,9 @@ export function DetalheLigacaoModal({ ligacao, onClose }: Props) {
             </div>
           )}
 
-          {!ligacao.transcricao && !ligacao.resumo_ia && (
+          {!ligacao.transcricao && !ligacao.resumo_ia && !ligacao.gravacao_url && (
             <div className="text-sm text-muted-foreground bg-gray-50 rounded-lg px-3 py-3 text-center">
-              Nenhuma transcrição ou análise disponível para esta ligação.
+              Nenhuma gravação, transcrição ou análise disponível para esta ligação.
             </div>
           )}
         </div>

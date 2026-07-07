@@ -75,6 +75,7 @@ export interface Ligacao {
   resumo_ia: string | null;
   pontos_chave: string[];
   proxima_acao: string | null;
+  gravacao_url: string | null;
   created_at: string;
 }
 

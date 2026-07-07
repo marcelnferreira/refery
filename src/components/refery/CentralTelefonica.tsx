@@ -5,12 +5,13 @@ import { Textarea } from '@/components/ui/textarea';
 import { Badge } from '@/components/ui/badge';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import {
-  useConta, useClientesAtivos, useIndicacoes, useSalvarLigacao,
+  useConta, useClientesAtivos, useIndicacoes, useSalvarLigacao, useUploadGravacao,
 } from '@/hooks/useRefery';
 import { useReferyTranscription } from '@/hooks/useReferyTranscription';
 import {
   startIncomingRing, stopIncomingRing, playConnected, playHangup, disposeSounds,
 } from '@/lib/callSounds';
+import { startRecording, stopRecording, criarMixGravacao } from '@/lib/callRecorder';
 import type { ClienteAtivo, Indicacao } from '@/types/refery';
 import { toast } from 'sonner';
 import {
@@ -35,6 +36,7 @@ export function CentralTelefonica() {
   const { data: clientes = [] } = useClientesAtivos(false);
   const { data: indicacoes = [] } = useIndicacoes();
   const salvarLigacao = useSalvarLigacao();
+  const uploadGravacao = useUploadGravacao();
   const { segmentos, transcrevendo, iniciarTranscricao, pararTranscricao, getTextoFinal } = useReferyTranscription();
 
   const [expandido, setExpandido] = useState(false);
@@ -52,15 +54,18 @@ export function CentralTelefonica() {
   const [statusRecebida, setStatusRecebida] = useState<StatusRecebida>('realizada');
   const [observacoes, setObservacoes] = useState('');
   const [salvando, setSalvando] = useState(false);
+  const [gravacaoUrlPronta, setGravacaoUrlPronta] = useState<string | null>(null);
 
   const wavoipRef = useRef<any>(null);
   const offerRef = useRef<any>(null);
   const activeCallRef = useRef<any>(null);
   const micStreamRef = useRef<MediaStream | null>(null);
+  const recorderRef = useRef<MediaRecorder | null>(null);
   const timerRef = useRef<NodeJS.Timeout | null>(null);
   const duracaoRef = useRef(0);
   const scrollRef = useRef<HTMLDivElement>(null);
   const initRef = useRef(false);
+  const gravacaoUploadRef = useRef<Promise<string | null> | null>(null);
 
   const token = conta?.wavoip_token;
   const sonioxKey = conta?.soniox_api_key;
@@ -151,6 +156,9 @@ export function CentralTelefonica() {
     return () => {
       pararTimer();
       pararTranscricao();
+      if (recorderRef.current && recorderRef.current.state !== 'inactive') {
+        try { recorderRef.current.stop(); } catch {}
+      }
       micStreamRef.current?.getTracks().forEach(t => t.stop());
       disposeSounds();
     };
@@ -171,17 +179,35 @@ export function CentralTelefonica() {
     }
   }, [tentarCasarContato]);
 
-  const finalizarChamada = useCallback((status: StatusRecebida) => {
+  const finalizarChamada = useCallback(async (status: StatusRecebida) => {
     playHangup();
     pararTimer();
     pararTranscricao();
+
+    // Encerra a gravação (mix local + remoto) antes de soltar o microfone
+    let gravacaoBlob: Blob | null = null;
+    if (recorderRef.current) {
+      try { gravacaoBlob = await stopRecording(recorderRef.current); } catch {}
+      recorderRef.current = null;
+    }
     micStreamRef.current?.getTracks().forEach(t => t.stop());
     micStreamRef.current = null;
     activeCallRef.current = null;
+
+    setGravacaoUrlPronta(null);
+    if (gravacaoBlob && gravacaoBlob.size > 0) {
+      const promise = uploadGravacao.mutateAsync(gravacaoBlob)
+        .then(url => { setGravacaoUrlPronta(url); return url; })
+        .catch(() => null);
+      gravacaoUploadRef.current = promise;
+    } else {
+      gravacaoUploadRef.current = null;
+    }
+
     prepararRegistro(peerInfo.telefone, peerInfo.nome);
     setStatusRecebida(status);
     setFase('registrar');
-  }, [pararTimer, pararTranscricao, peerInfo, prepararRegistro]);
+  }, [pararTimer, pararTranscricao, peerInfo, prepararRegistro, uploadGravacao]);
 
   const atender = async () => {
     const offer = offerRef.current;
@@ -199,6 +225,15 @@ export function CentralTelefonica() {
       playConnected();
       iniciarTimer();
       setFase('em_chamada');
+
+      // Grava a ligação completa (local + remoto) misturando os AnalyserNodes
+      // que o SDK do WaVoIP expõe no objeto da chamada ativa
+      try {
+        const mixStream = criarMixGravacao([call.audioAnalyserIn, call.audioAnalyserOut]);
+        if (mixStream) recorderRef.current = startRecording(mixStream);
+      } catch {
+        // Sem gravação se o navegador não suportar — a ligação continua normalmente
+      }
 
       // Captura mic separado para transcrição (independente do áudio da própria chamada)
       if (sonioxKey) {
@@ -268,7 +303,7 @@ export function CentralTelefonica() {
   const limparTudo = () => {
     setBuscaContato(''); setContatoSelecionado(null); setTelefoneManual('');
     setNomeManual(''); setStatusRecebida('realizada'); setObservacoes('');
-    setFase('ocioso'); setPeerInfo({ nome: null, telefone: '' });
+    setFase('ocioso'); setPeerInfo({ nome: null, telefone: '' }); setGravacaoUrlPronta(null);
   };
 
   const podeSalvar = !!(contatoSelecionado || (nomeManual.trim() && telefoneManual.trim()));
@@ -300,6 +335,8 @@ export function CentralTelefonica() {
       } catch {}
     }
 
+    const gravacaoUrl = gravacaoUrlPronta ?? (gravacaoUploadRef.current ? await gravacaoUploadRef.current : null);
+
     try {
       await salvarLigacao.mutateAsync({
         contato_id: contatoId,
@@ -309,6 +346,7 @@ export function CentralTelefonica() {
         status: statusRecebida,
         duracao_segundos: duracaoRef.current,
         transcricao: (observacoes.trim() ? `${observacoes.trim()}\n\n${textoTranscricao}` : textoTranscricao) || null,
+        gravacao_url: gravacaoUrl,
         resumo_ia: analiseResult?.resumo ?? null,
         pontos_chave: analiseResult?.pontos_chave ?? [],
         proxima_acao: analiseResult?.proxima_acao ?? null,
@@ -467,6 +505,16 @@ export function CentralTelefonica() {
               <div className="text-xs text-muted-foreground bg-blue-50 rounded-lg px-3 py-2">
                 Confirme o contato e registre o resultado da ligação recebida.
               </div>
+
+              {statusRecebida === 'realizada' && (
+                <div className="flex items-center gap-1.5 text-xs text-muted-foreground">
+                  {gravacaoUrlPronta ? (
+                    <><CheckCircle2 className="h-3.5 w-3.5 text-green-600" /> Gravação da ligação salva</>
+                  ) : (
+                    <><Loader2 className="h-3.5 w-3.5 animate-spin" /> Salvando gravação da ligação...</>
+                  )}
+                </div>
+              )}
 
               <div className="space-y-1.5">
                 <label className="text-xs font-medium text-gray-600">Quem ligou?</label>

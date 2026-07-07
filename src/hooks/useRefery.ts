@@ -3,7 +3,8 @@ import {
   collection, doc, getDoc, getDocs, addDoc, setDoc, updateDoc, deleteDoc,
   query, where, orderBy, serverTimestamp, Timestamp,
 } from 'firebase/firestore';
-import { db } from '@/integrations/firebase/client';
+import { db, storage } from '@/integrations/firebase/client';
+import { ref as storageRef, uploadBytes, getDownloadURL } from 'firebase/storage';
 import { useAuth } from '@/hooks/useAuth';
 import { toast } from 'sonner';
 import type {
@@ -719,6 +720,20 @@ export function useSalvarLigacao() {
     },
     onSuccess: () => qc.invalidateQueries({ queryKey: ['ligacoes'] }),
     onError: (e: any) => toast.error(e.message),
+  });
+}
+
+export function useUploadGravacao() {
+  const { user } = useAuth();
+  return useMutation({
+    mutationFn: async (blob: Blob): Promise<string> => {
+      const contaId = await getContaId(user!.uid);
+      if (!contaId) throw new Error('Conta não encontrada');
+      const nomeArquivo = `${Date.now()}_${Math.random().toString(36).slice(2, 8)}.webm`;
+      const fileRef = storageRef(storage, `contas/${contaId}/gravacoes/${nomeArquivo}`);
+      await uploadBytes(fileRef, blob, { contentType: blob.type || 'audio/webm' });
+      return getDownloadURL(fileRef);
+    },
   });
 }
 

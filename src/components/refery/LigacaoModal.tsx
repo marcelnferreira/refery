@@ -2,9 +2,10 @@ import { useState, useRef, useEffect, useCallback } from 'react';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { ScrollArea } from '@/components/ui/scroll-area';
-import { useConta, useSalvarLigacao } from '@/hooks/useRefery';
+import { useConta, useSalvarLigacao, useUploadGravacao } from '@/hooks/useRefery';
 import { useReferyTranscription } from '@/hooks/useReferyTranscription';
 import { startRingback, stopRingback, playConnected, playHangup, disposeSounds } from '@/lib/callSounds';
+import { startRecording, stopRecording } from '@/lib/callRecorder';
 import { toast } from 'sonner';
 import {
   Phone, PhoneOff, Mic, MicOff, Loader2,
@@ -34,6 +35,7 @@ type StatusChamada = 'realizada' | 'nao_atendeu' | 'ocupado';
 export default function LigacaoModal({ contatoId, contatoTipo, contatoNome, contatoTelefone, onClose }: Props) {
   const { data: conta } = useConta();
   const salvarLigacao = useSalvarLigacao();
+  const uploadGravacao = useUploadGravacao();
   const { segmentos, transcrevendo, erro: erroTranscricao, iniciarTranscricao, pararTranscricao, getTextoFinal } = useReferyTranscription();
 
   const [fase, setFase] = useState<Fase>('idle');
@@ -44,6 +46,7 @@ export default function LigacaoModal({ contatoId, contatoTipo, contatoNome, cont
   const [iframeUrl, setIframeUrl] = useState<string | null>(null);
 
   const micStreamRef = useRef<MediaStream | null>(null);
+  const recorderRef = useRef<MediaRecorder | null>(null);
   const timerRef = useRef<NodeJS.Timeout | null>(null);
   const scrollRef = useRef<HTMLDivElement>(null);
   const duracaoRef = useRef(0);
@@ -71,6 +74,9 @@ export default function LigacaoModal({ contatoId, contatoTipo, contatoNome, cont
     return () => {
       pararTimer();
       pararTranscricao();
+      if (recorderRef.current && recorderRef.current.state !== 'inactive') {
+        try { recorderRef.current.stop(); } catch {}
+      }
       micStreamRef.current?.getTracks().forEach(t => t.stop());
       disposeSounds();
     };
@@ -80,10 +86,23 @@ export default function LigacaoModal({ contatoId, contatoTipo, contatoNome, cont
     playHangup();
     pararTimer();
     pararTranscricao();
+
+    // Encerra a gravação ANTES de parar as tracks do microfone, senão o
+    // último trecho de áudio se perde
+    let gravacaoBlob: Blob | null = null;
+    if (recorderRef.current) {
+      try { gravacaoBlob = await stopRecording(recorderRef.current); } catch {}
+      recorderRef.current = null;
+    }
     micStreamRef.current?.getTracks().forEach(t => t.stop());
     micStreamRef.current = null;
     setIframeUrl(null);
     setFase('analisando');
+
+    let gravacaoUrl: string | null = null;
+    if (gravacaoBlob && gravacaoBlob.size > 0) {
+      try { gravacaoUrl = await uploadGravacao.mutateAsync(gravacaoBlob); } catch {}
+    }
 
     const textoTranscricao = getTextoFinal();
     let analiseResult = null;
@@ -114,12 +133,13 @@ export default function LigacaoModal({ contatoId, contatoTipo, contatoNome, cont
       resumo_ia: analiseResult?.resumo ?? null,
       pontos_chave: analiseResult?.pontos_chave ?? [],
       proxima_acao: analiseResult?.proxima_acao ?? null,
+      gravacao_url: gravacaoUrl,
     });
 
     setStatusFinal(status);
     setAnalise(analiseResult);
     setFase('resumo');
-  }, [pararTimer, pararTranscricao, getTextoFinal, contatoId, contatoTipo, contatoNome, contatoTelefone, salvarLigacao]);
+  }, [pararTimer, pararTranscricao, getTextoFinal, contatoId, contatoTipo, contatoNome, contatoTelefone, salvarLigacao, uploadGravacao]);
 
   const iniciarChamada = async () => {
     if (!conta?.wavoip_token) {
@@ -136,6 +156,7 @@ export default function LigacaoModal({ contatoId, contatoTipo, contatoNome, cont
         audio: { echoCancellation: true, noiseSuppression: true, autoGainControl: true },
       });
       micStreamRef.current = micStream;
+      recorderRef.current = startRecording(micStream);
     } catch (err: any) {
       const msg = err.name === 'NotAllowedError'
         ? 'Permissão de microfone negada. Permita o acesso nas configurações do navegador.'
@@ -251,6 +272,9 @@ export default function LigacaoModal({ contatoId, contatoTipo, contatoNome, cont
                 Sem chave Soniox — a ligação funciona, mas sem transcrição.
               </div>
             )}
+            <p className="text-xs text-muted-foreground">
+              O áudio da chamada é gravado (seu lado da conversa) e fica salvo no histórico do contato.
+            </p>
             <Button
               onClick={iniciarChamada}
               disabled={!conta?.wavoip_token}

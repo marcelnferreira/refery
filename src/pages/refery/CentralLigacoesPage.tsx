@@ -7,7 +7,7 @@ import { DetalheLigacaoModal } from '@/components/refery/DetalheLigacaoModal';
 import type { Ligacao, LigacaoStatus } from '@/types/refery';
 import {
   Phone, PhoneMissed, PhoneOff, Search, Clock,
-  Sparkles, MessageSquareText, PhoneCall,
+  Sparkles, MessageSquareText, PhoneCall, Volume2,
 } from 'lucide-react';
 import { format, isToday, isYesterday } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
@@ -158,6 +158,11 @@ export default function CentralLigacoesPage() {
                       {l.resumo_ia && (
                         <span title="Analisado por IA" className="shrink-0">
                           <Sparkles className="h-3.5 w-3.5 text-blue-500" />
+                        </span>
+                      )}
+                      {l.gravacao_url && (
+                        <span title="Gravação disponível" className="shrink-0">
+                          <Volume2 className="h-3.5 w-3.5 text-green-600" />
                         </span>
                       )}
                     </div>

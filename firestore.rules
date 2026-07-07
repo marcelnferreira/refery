@@ -57,6 +57,21 @@ service cloud.firestore {
         allow read, write: if isMembro();
       }
 
+      // Ligações (histórico de chamadas, incl. URL da gravação)
+      match /ligacoes/{ligacaoId} {
+        allow read, write: if isMembro();
+      }
+
+      // Status personalizados de indicação
+      match /status_indicacao/{statusId} {
+        allow read, write: if isMembro();
+      }
+
+      // Mensagens WhatsApp
+      match /whatsapp_msgs/{msgId} {
+        allow read, write: if isMembro();
+      }
+
       // Agendas semanais e itens
       match /agendas/{agendaId} {
         allow read, write: if isMembro();
