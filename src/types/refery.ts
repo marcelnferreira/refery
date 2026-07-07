@@ -25,6 +25,17 @@ export interface Conta {
   updated_at: string;
 }
 
+export type SituacaoFamiliar = 'CCF' | 'CSF' | 'SCF' | 'SSF' | 'DCF' | 'DSF';
+
+export const SITUACAO_FAMILIAR_LABELS: Record<SituacaoFamiliar, string> = {
+  CCF: 'Casado(a) com filhos',
+  CSF: 'Casado(a) sem filhos',
+  SCF: 'Solteiro(a) com filhos',
+  SSF: 'Solteiro(a) sem filhos',
+  DCF: 'Divorciado(a) com filhos',
+  DSF: 'Divorciado(a) sem filhos',
+};
+
 export type StatusCor = 'azul' | 'amarelo' | 'roxo' | 'laranja' | 'verde' | 'vermelho' | 'cinza' | 'teal' | 'rosa';
 
 export interface StatusIndicacaoCustom {
@@ -117,6 +128,10 @@ export interface Indicacao {
   indicado_por_id: string;
   status: IndicacaoStatus;
   status_custom: string | null;
+  cidade: string | null;
+  profissao: string | null;
+  situacao_familiar: SituacaoFamiliar | null;
+  contexto: string | null;
   motivo_perda: string | null;
   data_reuniao: string | null;
   observacoes: string | null;

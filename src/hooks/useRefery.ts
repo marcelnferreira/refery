@@ -9,7 +9,7 @@ import { toast } from 'sonner';
 import type {
   Conta, UsuarioConta, ConfiguracoesConta, ClienteAtivo, Indicacao,
   HistoricoAtividade, AgendaSemanal, AgendaItem, IndicacaoStatus, AgendaItemResultado,
-  Ligacao, LigacaoStatus, StatusIndicacaoCustom,
+  Ligacao, LigacaoStatus, StatusIndicacaoCustom, SituacaoFamiliar,
 } from '@/types/refery';
 
 // ============================================================
@@ -237,7 +237,12 @@ export function useCreateIndicacao() {
   const qc = useQueryClient();
   const { user } = useAuth();
   return useMutation({
-    mutationFn: async (input: { nome: string; telefone: string; email?: string; indicado_por_id: string; observacoes?: string; status_custom?: string | null }) => {
+    mutationFn: async (input: {
+      nome: string; telefone: string; email?: string; indicado_por_id: string;
+      observacoes?: string; status_custom?: string | null;
+      cidade?: string | null; profissao?: string | null;
+      situacao_familiar?: SituacaoFamiliar | null; contexto?: string | null;
+    }) => {
       const contaId = await getContaId(user!.uid);
       if (!contaId) throw new Error('Conta não encontrada');
 
@@ -247,6 +252,10 @@ export function useCreateIndicacao() {
         email: input.email ?? null,
         observacoes: input.observacoes ?? null,
         status_custom: input.status_custom ?? null,
+        cidade: input.cidade ?? null,
+        profissao: input.profissao ?? null,
+        situacao_familiar: input.situacao_familiar ?? null,
+        contexto: input.contexto ?? null,
         status: 'novo',
         motivo_perda: null,
         data_reuniao: null,
